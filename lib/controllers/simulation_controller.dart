@@ -7,11 +7,18 @@ import '../models/batch_run_result.dart';
 import '../models/drone_model.dart';
 import '../models/grid_map_2d.dart';
 import '../models/vector2.dart';
+import '../services/hardware_bridge_service.dart';
 import '../utils/csv_helper.dart';
 
 enum SimState { standby, running, targetFound, complete }
 
+enum AppDataSource { simulation, realDrone }
+
 class SimulationController extends GetxController {
+  // Data Source Toggle: Virtual Math Simulation vs Physical Hardware Link
+  final appDataSource = AppDataSource.simulation.obs;
+  bool get isRealDroneMode => appDataSource.value == AppDataSource.realDrone;
+
   // Swarm & Scene State
   final drones = <DroneModel>[].obs;
   final activeDroneCount = 3.obs; // 1, 2, or 3 drones
@@ -63,6 +70,16 @@ class SimulationController extends GetxController {
     map = GridMap2D();
     _initDrones();
     targetPosition.value = ArenaMap.pickValidTarget(_random);
+
+    // Listen for incoming physical drone telemetry packets from Raspberry Pi
+    final hw = Get.isRegistered<HardwareBridgeService>()
+        ? Get.find<HardwareBridgeService>()
+        : Get.put(HardwareBridgeService());
+    ever(hw.lastPacket, (RealDronePacket? packet) {
+      if (packet != null && isRealDroneMode) {
+        onRealDroneTelemetry(packet);
+      }
+    });
   }
 
   @override
@@ -214,6 +231,139 @@ class SimulationController extends GetxController {
   }
 
   // ===========================================================================
+  // REAL DRONE HARDWARE INTEGRATION (Raspberry Pi 4 + 5 LiDAR + SLAM)
+  // ===========================================================================
+
+  /// Switch between Virtual Simulation and Real Drone (RPi 4) Hardware Link
+  void setDataSource(AppDataSource source) {
+    if (appDataSource.value == source) return;
+    appDataSource.value = source;
+
+    if (source == AppDataSource.realDrone) {
+      if (isRunning) stopRun();
+      setActiveDroneCount(1);
+      drones[0].name = 'Real Drone (RPi 4)';
+      drones[0].role = DroneRole.leader;
+      simState.value = SimState.standby;
+
+      // Ensure start position and clear maps for real mapping
+      drones[0].position = const Vector2(0.0, 0.0);
+      drones[0].startPosition = const Vector2(0.0, 0.0);
+      drones[0].headingAngle = 0.0;
+      clearRealDroneMap();
+
+      final hw = Get.find<HardwareBridgeService>();
+      if (!hw.isConnected && hw.connectionState.value != HardwareConnectionState.connecting) {
+        hw.connect();
+      }
+    } else {
+      drones[0].name = 'Drone1';
+      simState.value = SimState.standby;
+      resetToDefaultPositions();
+    }
+    drones.refresh();
+  }
+
+  /// Process live telemetry packet from physical drone
+  void onRealDroneTelemetry(RealDronePacket packet) {
+    if (!isRealDroneMode || drones.isEmpty) return;
+    final drone = drones[0];
+
+    // Update physical drone state
+    drone.position = packet.position;
+    drone.headingAngle = packet.headingRad;
+    drone.smoothedDir = Vector2(math.cos(packet.headingRad), math.sin(packet.headingRad));
+    drone.batteryVoltage = packet.batteryVoltage;
+    drone.isStandby = packet.status != 'active' && packet.status != 'flying';
+    drone.recordMissionStep();
+
+    if (simState.value == SimState.standby && !drone.isStandby) {
+      simState.value = SimState.running;
+    }
+
+    // SLAM Mapping from 5 real physical LiDAR sensors
+    _updateRealDroneSLAM(drone, packet.lidarDistances);
+    drones.refresh();
+  }
+
+  void _updateRealDroneSLAM(DroneModel drone, List<double> distances) {
+    final rays = <SensorRay>[];
+    const sensorNames = [
+      'Front LiDAR (0°)',
+      'Angle LiDAR (45°)',
+      'Left LiDAR (90°)',
+      'Right LiDAR (-90°)',
+      'Rear LiDAR (180°)'
+    ];
+
+    // Mark current cell free in local & global map
+    final currCell = drone.localMap.worldToCellSafe(drone.position);
+    if (currCell != null) {
+      drone.localMap.setFree(currCell);
+      map.setFree(currCell);
+    }
+
+    for (int i = 0; i < math.min(drone.lidarAngles.length, distances.length); i++) {
+      final ang = drone.headingAngle + drone.lidarAngles[i];
+      final dir = Vector2(math.cos(ang), math.sin(ang));
+      final rawDist = distances[i];
+      final isHit = rawDist > 0.05 && rawDist < drone.senseRange;
+      final hitDist = isHit ? rawDist : drone.senseRange;
+      final rayEnd = drone.position + dir * hitDist;
+
+      rays.add(SensorRay(drone.position, rayEnd, isHit, sensorName: sensorNames[i]));
+
+      // Mark free cells along the ray
+      final steps = (hitDist / drone.localMap.cellSize).ceil();
+      for (int s = 1; s <= steps; s++) {
+        final p = drone.position + dir * math.min(hitDist, s * drone.localMap.cellSize);
+        final c = drone.localMap.worldToCellSafe(p);
+        if (c != null) {
+          drone.localMap.setFree(c);
+          map.setFree(c);
+        }
+      }
+
+      // Mark occupied cell at hit obstacle
+      if (isHit) {
+        final occPoint = rayEnd + (-dir) * 0.02;
+        final occCell = drone.localMap.worldToCellSafe(occPoint);
+        if (occCell != null) {
+          drone.localMap.setOccupied(occCell);
+          map.setOccupied(occCell);
+        }
+      }
+    }
+
+    drone.localMap.rebuildInflation();
+    map.rebuildInflation();
+    drone.currentSensorRays = rays;
+  }
+
+  /// Clear the physical drone's SLAM map and start fresh mapping session
+  void clearRealDroneMap() {
+    if (drones.isNotEmpty) {
+      drones[0].localMap.clear();
+      drones[0].missionPath.clear();
+      drones[0].missionPath.add(drones[0].position);
+      drones[0].startPosition = drones[0].position;
+    }
+    map.clear();
+    drones.refresh();
+  }
+
+  /// Calibrate start / origin point (0, 0)
+  void calibrateRealDroneZero() {
+    if (drones.isNotEmpty) {
+      drones[0].position = const Vector2(0.0, 0.0);
+      drones[0].startPosition = const Vector2(0.0, 0.0);
+      clearRealDroneMap();
+    }
+    final hw = Get.find<HardwareBridgeService>();
+    hw.sendZeroCalibration();
+  }
+
+  // ===========================================================================
   // MANUAL RUN
   // ===========================================================================
   void startManualRun() {
@@ -289,6 +439,7 @@ class SimulationController extends GetxController {
   }
 
   void _tick(double dt) {
+    if (isRealDroneMode) return; // Physical drone mode is driven directly by live hardware telemetry
     elapsedTime.value += dt;
 
     // Tick active drones

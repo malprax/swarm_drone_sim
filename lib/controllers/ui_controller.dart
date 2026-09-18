@@ -42,9 +42,15 @@ class UIController extends GetxController {
   // Batch Runs input controller
   final runsInputController = TextEditingController(text: '30');
 
+  // Real Drone Raspberry Pi Connection Controllers
+  final rpiIpController = TextEditingController(text: '192.168.1.50');
+  final rpiPortController = TextEditingController(text: '8765');
+
   @override
   void onClose() {
     runsInputController.dispose();
+    rpiIpController.dispose();
+    rpiPortController.dispose();
     super.onClose();
   }
 
