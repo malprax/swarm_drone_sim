@@ -1,0 +1,3 @@
+run,status,foundDrone,foundRole,timeToFind,timeTotal,targetX,targetY,wallCollisions,droneCollisions
+1,OK,Drone2,Member,204.160,289.600,11.071,6.074,50,39
+2,OK,Drone3,Member,103.360,187.200,-8.334,6.859,47,17
