@@ -105,7 +105,7 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                 _didPanCanvas = false;
                 _dragDroneIndex = -2; // -2 = empty background
 
-                if (sim.isRunning) return;
+                if (sim.isRunning || sim.isRealDroneMode) return;
 
                 final currentZoom = ui.zoom.value;
                 final currentPan = ui.panOffset.value;
@@ -375,6 +375,7 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
 
                 // Default info pill when gizmo is idle
                 final curZoom = (ui.zoom.value * 100).toInt();
+                final isReal = sim.isRealDroneMode;
                 return Align(
                   alignment: Alignment.bottomLeft,
                   child: Container(
@@ -382,16 +383,25 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                     decoration: BoxDecoration(
                       color: const Color(0xCC0F172A),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white24, width: 1),
+                      border: Border.all(
+                        color: isReal ? const Color(0xFF06B6D4) : Colors.white24,
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.mouse_outlined, size: 13, color: Colors.cyanAccent),
+                        Icon(
+                          isReal ? Icons.radar : Icons.mouse_outlined,
+                          size: 13,
+                          color: Colors.cyanAccent,
+                        ),
                         const SizedBox(width: 5),
                         Flexible(
                           child: Text(
-                            'Zoom: $curZoom% • Putar wheel mouse / pinch trackpad untuk zoom • Geser untuk pan',
+                            isReal
+                                ? '🛸 Real Drone Mode • Memetakan ruangan fisik dengan 5 LiDAR • Zoom: $curZoom%'
+                                : 'Zoom: $curZoom% • Putar wheel mouse / pinch trackpad untuk zoom • Geser untuk pan',
                             style: const TextStyle(color: Colors.white70, fontSize: 10),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -649,19 +659,27 @@ class ArenaPainter extends CustomPainter {
       _drawOccupancyGrid(canvas, worldToScreen, baseScale);
     }
 
-    // 3. Draw Target Spawn Area bounds
-    if (ui.showTargetArea.value) {
+    // 3. Draw Target Spawn Area bounds (Simulation mode only)
+    if (!sim.isRealDroneMode && ui.showTargetArea.value) {
       _drawTargetArea(canvas, worldToScreen);
     }
 
-    // 4. Draw Walls
-    _drawWalls(canvas, worldToScreen, toScreenDist);
+    // 4. Draw Walls (Simulation mode only - Real mode discovers walls dynamically via LiDAR)
+    if (!sim.isRealDroneMode) {
+      _drawWalls(canvas, worldToScreen, toScreenDist);
+    }
 
-    // 5. Draw HomeBase
-    _drawHomeBase(canvas, worldToScreen, toScreenDist);
+    // 5. Draw HomeBase or Real Drone Start Point (0,0)
+    if (sim.isRealDroneMode) {
+      _drawRealDroneOrigin(canvas, worldToScreen, toSDist: toScreenDist);
+    } else {
+      _drawHomeBase(canvas, worldToScreen, toScreenDist);
+    }
 
-    // 6. Draw Target
-    _drawTarget(canvas, targetPos, worldToScreen, toScreenDist);
+    // 6. Draw Target (Simulation mode only)
+    if (!sim.isRealDroneMode) {
+      _drawTarget(canvas, targetPos, worldToScreen, toScreenDist);
+    }
 
     // 7. Draw Mission Paths (Breadcrumbs / Exploration History)
     if (missionPathVisible) {
@@ -673,8 +691,8 @@ class ArenaPainter extends CustomPainter {
       final drone = sim.activeDrones[i];
       _drawDrone(canvas, drone, worldToScreen, toScreenDist);
 
-      // Draw Drone Gizmo if active
-      if (gizmoMode == GizmoMode.drones) {
+      // Draw Drone Gizmo if active (Simulation mode only)
+      if (!sim.isRealDroneMode && gizmoMode == GizmoMode.drones) {
         final dScreen = worldToScreen(drone.position);
         final isSelected = activeGizmoDroneIndex == i;
         final currentAxis = isSelected ? activeGizmoAxis : GizmoAxis.none;
@@ -691,8 +709,8 @@ class ArenaPainter extends CustomPainter {
       }
     }
 
-    // 9. Draw Target Gizmo if active
-    if (gizmoMode == GizmoMode.target) {
+    // 9. Draw Target Gizmo if active (Simulation mode only)
+    if (!sim.isRealDroneMode && gizmoMode == GizmoMode.target) {
       final tScreen = worldToScreen(targetPos);
       _drawTransformGizmo(
         canvas,
@@ -702,6 +720,11 @@ class ArenaPainter extends CustomPainter {
         'TARGET',
         Colors.amberAccent,
       );
+    }
+
+    // 10. Real Drone SLAM Mapping Watermark Overlay
+    if (sim.isRealDroneMode) {
+      _drawRealDroneWatermark(canvas, size);
     }
   }
 
@@ -891,11 +914,15 @@ class ArenaPainter extends CustomPainter {
     final cellPixelSize = math.max(1.0, map.cellSize * scale);
 
     final freePaint = Paint()
-      ..color = const Color(0x2238BDF8)
+      ..color = sim.isRealDroneMode
+          ? const Color(0x1806B6D4)
+          : const Color(0x2238BDF8)
       ..style = PaintingStyle.fill;
 
     final occupiedPaint = Paint()
-      ..color = const Color(0x66DC2626)
+      ..color = sim.isRealDroneMode
+          ? const Color(0xFFEF4444)
+          : const Color(0x66DC2626)
       ..style = PaintingStyle.fill;
 
     for (int y = 0; y < map.height; y += 1) {
@@ -991,6 +1018,76 @@ class ArenaPainter extends CustomPainter {
     canvas.drawLine(homePos + Offset(-hSize, -hSize), homePos + Offset(-hSize, hSize), hPaint);
     canvas.drawLine(homePos + Offset(hSize, -hSize), homePos + Offset(hSize, hSize), hPaint);
     canvas.drawLine(homePos + Offset(-hSize, 0), homePos + Offset(hSize, 0), hPaint);
+  }
+
+  void _drawRealDroneOrigin(
+    Canvas canvas,
+    Offset Function(Vector2) w2s, {
+    required double Function(double) toSDist,
+  }) {
+    final originPos = w2s(Vector2(0, 0));
+    final radius = math.max(14.0, toSDist(0.6));
+
+    // Outer glow
+    canvas.drawCircle(
+      originPos,
+      radius,
+      Paint()
+        ..color = Colors.cyanAccent.withValues(alpha: 0.12)
+        ..style = PaintingStyle.fill,
+    );
+
+    // Border ring
+    canvas.drawCircle(
+      originPos,
+      radius,
+      Paint()
+        ..color = Colors.cyanAccent.withValues(alpha: 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // Crosshair
+    final crossPaint = Paint()
+      ..color = Colors.cyanAccent
+      ..strokeWidth = 1.8;
+    final chLen = radius * 0.6;
+    canvas.drawLine(originPos + Offset(-chLen, 0), originPos + Offset(chLen, 0), crossPaint);
+    canvas.drawLine(originPos + Offset(0, -chLen), originPos + Offset(0, chLen), crossPaint);
+
+    // Label
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'START POINT (0, 0)',
+        style: TextStyle(
+          color: Colors.cyanAccent,
+          fontSize: 9.5,
+          fontWeight: FontWeight.bold,
+          backgroundColor: Color(0xCC000000),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(canvas, originPos + Offset(-tp.width / 2, radius + 4));
+  }
+
+  void _drawRealDroneWatermark(Canvas canvas, Size size) {
+    const text = '🛸 REAL DRONE 5x LIDAR SLAM • HARDWARE BRIDGE';
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: text,
+        style: TextStyle(
+          color: Color(0x7738BDF8),
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(canvas, const Offset(16, 16));
   }
 
   void _drawTarget(

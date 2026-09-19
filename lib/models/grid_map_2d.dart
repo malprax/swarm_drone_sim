@@ -66,6 +66,17 @@ class GridMap2D {
     return _grid[c.y * width + c.x];
   }
 
+  bool isFree(Vector2Int c) => getCell(c) == free;
+  bool isOccupied(Vector2Int c) => getCell(c) == occupied;
+
+  int get scannedCellsCount {
+    int count = 0;
+    for (int i = 0; i < _grid.length; i++) {
+      if (_grid[i] != unknown) count++;
+    }
+    return count;
+  }
+
   int getCellInflated(Vector2Int c) {
     if (!inBounds(c)) return occupied;
     return _inflatedGrid[c.y * width + c.x];

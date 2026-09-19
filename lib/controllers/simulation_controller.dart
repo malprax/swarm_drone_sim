@@ -257,6 +257,7 @@ class SimulationController extends GetxController {
         hw.connect();
       }
     } else {
+      setActiveDroneCount(3);
       drones[0].name = 'Drone1';
       simState.value = SimState.standby;
       resetToDefaultPositions();
@@ -303,8 +304,8 @@ class SimulationController extends GetxController {
       map.setFree(currCell);
     }
 
-    for (int i = 0; i < math.min(drone.lidarAngles.length, distances.length); i++) {
-      final ang = drone.headingAngle + drone.lidarAngles[i];
+    for (int i = 0; i < math.min(DroneModel.lidarAngles.length, distances.length); i++) {
+      final ang = drone.headingAngle + DroneModel.lidarAngles[i];
       final dir = Vector2(math.cos(ang), math.sin(ang));
       final rawDist = distances[i];
       final isHit = rawDist > 0.05 && rawDist < drone.senseRange;

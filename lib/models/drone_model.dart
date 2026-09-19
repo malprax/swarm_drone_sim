@@ -50,12 +50,13 @@ class SensorRay {
 
 /// Drone simulation model with hardware components, 4-pole LEDs, and local SLAM map
 class DroneModel {
-  final String name;
+  String name;
   final int teamIndex;
   DroneRole role;
   DroneStatus status = DroneStatus.search;
   DroneFrameType frameType;
   final DroneHardwareSpec hardware = const DroneHardwareSpec();
+  double batteryVoltage = 16.8;
 
   Vector2 position;
   Vector2 startPosition;
