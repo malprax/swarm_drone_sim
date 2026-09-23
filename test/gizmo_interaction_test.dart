@@ -122,5 +122,40 @@ void main() {
       expect(sim.activeDrones.where((d) => d.role.name == 'leader').length, equals(1));
       expect(sim.activeDrones.where((d) => d.role.name == 'member').length, equals(2));
     });
+
+    test('Dynamic Home Base moves with drones and does not stay static', () {
+      // 1. Initial State: each drone's returnHomePos matches default start positions
+      expect(sim.drones[0].returnHomePos, equals(ArenaMap.defaultStartPositions[0]));
+      expect(sim.drones[1].returnHomePos, equals(ArenaMap.defaultStartPositions[1]));
+      expect(sim.drones[2].returnHomePos, equals(ArenaMap.defaultStartPositions[2]));
+      expect(sim.homeBase.value, equals(ArenaMap.defaultHomeBase));
+
+      // 2. Move Drone 0 to a new position -> its returnHomePos updates dynamically
+      const newPos0 = Vector2(-2.5, 1.5);
+      sim.moveDroneSafely(0, newPos0);
+      expect(sim.drones[0].returnHomePos.x, closeTo(-2.5, 1e-4));
+      expect(sim.drones[0].returnHomePos.y, closeTo(1.5, 1e-4));
+      expect(sim.homeBase.value, equals(sim.drones[0].returnHomePos));
+
+      // Move Drone 1 to another room
+      const newPos1 = Vector2(2.0, 5.0);
+      sim.moveDroneSafely(1, newPos1);
+      expect(sim.drones[1].returnHomePos.x, closeTo(2.0, 1e-4));
+      expect(sim.drones[1].returnHomePos.y, closeTo(5.0, 1e-4));
+
+      // 3. Randomize Drone positions -> each drone gets its own distinct home base
+      sim.randomizeDronePositions();
+      for (int i = 0; i < sim.activeDroneCount.value; i++) {
+        expect(sim.drones[i].returnHomePos, equals(sim.drones[i].position));
+        expect(ArenaMap.overlapsWall(sim.drones[i].returnHomePos, sim.drones[i].droneRadius), isFalse);
+      }
+
+      // 4. Reset to default positions -> returnHomePos returns to initial defaults
+      sim.resetToDefaultPositions();
+      expect(sim.drones[0].returnHomePos, equals(ArenaMap.defaultStartPositions[0]));
+      expect(sim.drones[1].returnHomePos, equals(ArenaMap.defaultStartPositions[1]));
+      expect(sim.drones[2].returnHomePos, equals(ArenaMap.defaultStartPositions[2]));
+      expect(sim.homeBase.value, equals(ArenaMap.defaultHomeBase));
+    });
   });
 }

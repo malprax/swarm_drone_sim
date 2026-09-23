@@ -175,6 +175,9 @@ class SimulationController extends GetxController {
     for (int i = 0; i < count; i++) {
       drones[i].reset(newPositions[i]);
     }
+    if (drones.isNotEmpty) {
+      homeBase.value = drones[0].returnHomePos;
+    }
     drones.refresh();
   }
 
@@ -194,6 +197,7 @@ class SimulationController extends GetxController {
       final pos = ArenaMap.defaultStartPositions[i];
       drones[i].reset(pos);
     }
+    homeBase.value = ArenaMap.defaultHomeBase;
     drones.refresh();
   }
 
@@ -224,6 +228,9 @@ class SimulationController extends GetxController {
     drone.position = clamped;
     drone.startPosition = clamped;
     drone.returnHomePos = clamped;
+    if (droneIndex == 0) {
+      homeBase.value = clamped;
+    }
     if (drone.missionPath.isNotEmpty) {
       drone.missionPath[0] = clamped;
     }
@@ -314,10 +321,11 @@ class SimulationController extends GetxController {
 
       rays.add(SensorRay(drone.position, rayEnd, isHit, sensorName: sensorNames[i]));
 
-      // Mark free cells along the ray
-      final steps = (hitDist / drone.localMap.cellSize).ceil();
+      // Mark free cells strictly before hit obstacle
+      final freeLimit = isHit ? math.max(0.0, hitDist - 0.05) : hitDist;
+      final steps = (freeLimit / drone.localMap.cellSize).floor();
       for (int s = 1; s <= steps; s++) {
-        final p = drone.position + dir * math.min(hitDist, s * drone.localMap.cellSize);
+        final p = drone.position + dir * (s * drone.localMap.cellSize);
         final c = drone.localMap.worldToCellSafe(p);
         if (c != null) {
           drone.localMap.setFree(c);
@@ -328,7 +336,7 @@ class SimulationController extends GetxController {
       // Mark occupied cell at hit obstacle
       if (isHit) {
         final occPoint = rayEnd + (-dir) * 0.02;
-        final occCell = drone.localMap.worldToCellSafe(occPoint);
+        final occCell = drone.localMap.worldToCellSafe(occPoint) ?? drone.localMap.worldToCellSafe(rayEnd);
         if (occCell != null) {
           drone.localMap.setOccupied(occCell);
           map.setOccupied(occCell);
@@ -392,7 +400,7 @@ class SimulationController extends GetxController {
     leaderDroneRole.value = '';
 
     for (int i = 0; i < drones.length; i++) {
-      drones[i].reset(drones[i].position, clearLocalMap: true);
+      drones[i].reset(drones[i].returnHomePos, clearLocalMap: true);
     }
 
     simState.value = SimState.standby;

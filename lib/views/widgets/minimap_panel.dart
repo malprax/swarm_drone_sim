@@ -8,7 +8,9 @@ import '../../models/grid_map_2d.dart';
 import '../../models/vector2.dart';
 
 class MinimapPanel extends StatelessWidget {
-  const MinimapPanel({super.key});
+  final bool? isVertical;
+
+  const MinimapPanel({super.key, this.isVertical});
 
   @override
   Widget build(BuildContext context) {
@@ -18,63 +20,107 @@ class MinimapPanel extends StatelessWidget {
     return Obx(() {
       if (!ui.showMinimaps.value) return const SizedBox.shrink();
 
+      final effectiveVertical = isVertical ?? (ui.activeSplitLayout.value != ArenaSplitLayout.horizontal);
+
       return Container(
-        height: 220,
-        decoration: const BoxDecoration(
-          color: Color(0xFF111827),
-          border: Border(top: BorderSide(color: Color(0xFF374151), width: 1.5)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF111827),
+          border: Border(
+            top: effectiveVertical ? BorderSide.none : const BorderSide(color: Color(0xFF374151), width: 1.0),
+            left: effectiveVertical ? const BorderSide(color: Color(0xFF374151), width: 1.0) : BorderSide.none,
+          ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Section Header
-            Row(
-              children: [
-                const Icon(Icons.map_outlined, color: Colors.cyanAccent, size: 16),
-                const SizedBox(width: 8),
-                Obx(() => Text(
-                      sim.activeDroneCount.value == 1
-                          ? 'AI LOCAL ROOM MAPPING (1 DRONE - WIDE SCAN)'
-                          : '${sim.activeDroneCount.value}-DRONE AI LOCAL ROOM MAPPING',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        letterSpacing: 0.8,
-                      ),
-                    )),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'RPi 4 • Pixhawk 6 • 5x LiDAR • OF • UWB DW3000',
-                    style: TextStyle(color: Colors.white54, fontSize: 10),
-                    overflow: TextOverflow.ellipsis,
+            if (effectiveVertical)
+              Row(
+                children: [
+                  const Icon(Icons.map_outlined, color: Colors.cyanAccent, size: 15),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Obx(() => Text(
+                          sim.activeDroneCount.value == 1
+                              ? 'AI SLAM MAPPING (1 DRONE)'
+                              : '${sim.activeDroneCount.value}x AI SLAM MAPPING',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            letterSpacing: 0.6,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        )),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => ui.showMinimaps.value = false,
-                  icon: const Icon(Icons.close, size: 16, color: Colors.white60),
-                  tooltip: 'Hide Minimaps',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
+                  IconButton(
+                    onPressed: () => ui.showMinimaps.value = false,
+                    icon: const Icon(Icons.close, size: 15, color: Colors.white60),
+                    tooltip: 'Hide Minimap Panel',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  const Icon(Icons.map_outlined, color: Colors.cyanAccent, size: 16),
+                  const SizedBox(width: 8),
+                  Obx(() => Text(
+                        sim.activeDroneCount.value == 1
+                            ? 'AI LOCAL ROOM MAPPING (1 DRONE - WIDE SCAN)'
+                            : '${sim.activeDroneCount.value}-DRONE AI LOCAL ROOM MAPPING',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          letterSpacing: 0.8,
+                        ),
+                      )),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'RPi 4 • Pixhawk 6 • 5x LiDAR • OF • UWB DW3000',
+                      style: TextStyle(color: Colors.white54, fontSize: 10),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => ui.showMinimaps.value = false,
+                    icon: const Icon(Icons.close, size: 16, color: Colors.white60),
+                    tooltip: 'Hide Minimaps',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
             const SizedBox(height: 6),
 
-            // Adaptive Minimap Boxes Side-by-Side (1: 100% full-width, 2: 50%/50%, 3: 33.3% each)
+            // Adaptive Minimap Boxes: Row in Horizontal mode, Column in Vertical mode
             Expanded(
-              child: Row(
-                children: sim.activeDrones.map((drone) {
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _SingleDroneMinimap(drone: drone),
+              child: effectiveVertical
+                  ? Column(
+                      children: sim.activeDrones.map((drone) {
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 3),
+                            child: _SingleDroneMinimap(drone: drone),
+                          ),
+                        );
+                      }).toList(),
+                    )
+                  : Row(
+                      children: sim.activeDrones.map((drone) {
+                        return Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: _SingleDroneMinimap(drone: drone),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  );
-                }).toList(),
-              ),
             ),
           ],
         ),
@@ -90,6 +136,7 @@ class _SingleDroneMinimap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ui = Get.find<UIController>();
     final isLeader = drone.role == DroneRole.leader;
     final roleColor = drone.ledColor;
 
@@ -168,7 +215,10 @@ class _SingleDroneMinimap extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(7)),
               child: CustomPaint(
                 size: Size.infinite,
-                painter: _DroneLocalMapPainter(drone: drone),
+                painter: _DroneLocalMapPainter(
+                  drone: drone,
+                  wallLineThickness: ui.wallLineThickness.value,
+                ),
               ),
             ),
           ),
@@ -180,8 +230,12 @@ class _SingleDroneMinimap extends StatelessWidget {
 
 class _DroneLocalMapPainter extends CustomPainter {
   final DroneModel drone;
+  final int wallLineThickness;
 
-  _DroneLocalMapPainter({required this.drone});
+  _DroneLocalMapPainter({
+    required this.drone,
+    required this.wallLineThickness,
+  });
 
   static const double worldCenterX = 0.0;
   static const double worldCenterY = 3.0;
@@ -232,7 +286,7 @@ class _DroneLocalMapPainter extends CustomPainter {
 
         if (val == GridMap2D.free) {
           canvas.drawRect(rect, freePaint);
-        } else if (val == GridMap2D.occupied) {
+        } else if (val == GridMap2D.occupied && wallLineThickness > 0) {
           canvas.drawRect(rect, occupiedPaint);
         }
       }

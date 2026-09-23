@@ -69,7 +69,18 @@ class DroneModel {
   double moveSpeed = 2.0;
   double turnSpeedDeg = 220.0;
   double steeringSmoothing = 10.0;
-  double droneRadius = 0.22;
+  /// Physical static radius covering motor arms and spinning propeller blade tips (paper R_col = 0.38 m)
+  double droneRadius = 0.38;
+
+  /// Adaptive collision radius according to Eq. 4 from research paper:
+  /// R(v) = R_col + ΔR_max * (v_actual / v_move)^p
+  /// R_col = 0.38 m (covers drone body + propeller tips)
+  /// ΔR_max = 0.08 m (speed buffer)
+  /// p = 1.6
+  double get effectiveCollisionRadius {
+    final speedRatio = (moveSpeed > 0) ? (moveSpeed / 2.0).clamp(0.0, 1.5) : 0.0;
+    return droneRadius + 0.08 * math.pow(speedRatio, 1.6);
+  }
 
   // Collision stats
   int wallCollisionCount = 0;
@@ -78,8 +89,8 @@ class DroneModel {
   // Sensing parameters (5 LiDARs + Optical Flow + UWB)
   double senseRange = 3.0; // 5 LiDAR range
   double detectRange = 6.0;
-  double foundDistance = 0.35;
-  double waypointArriveDistance = 0.35;
+  double foundDistance = 0.45;
+  double waypointArriveDistance = 0.40;
   double homeArriveDistance = 0.50;
 
   // 5 LiDAR angles relative to forward heading: Front (0°), Left (90°), Right (-90°), Rear (180°), Angle (45°)
@@ -103,11 +114,11 @@ class DroneModel {
   Vector2 preferredBiasDir = Vector2.zero;
 
   // Separation
-  double separationRadius = 0.90;
+  double separationRadius = 0.95;
   double separationSteerWeight = 1.8;
 
   // Corner avoidance
-  double cornerAvoidProbe = 0.35;
+  double cornerAvoidProbe = 0.50;
   double cornerHoldUntil = 0.0;
 
   // Navigation state
@@ -252,10 +263,11 @@ class DroneModel {
 
       rays.add(SensorRay(position, rayEnd, hit != null, sensorName: sensorNames[i]));
 
-      // Mark free cells along ray in both local and global map
-      final steps = (hitDist / localMap.cellSize).ceil();
+      // Mark free cells strictly before hit obstacle
+      final freeLimit = hit != null ? math.max(0.0, hitDist - 0.05) : hitDist;
+      final steps = (freeLimit / localMap.cellSize).floor();
       for (int s = 1; s <= steps; s++) {
-        final p = position + dir * math.min(hitDist, s * localMap.cellSize);
+        final p = position + dir * (s * localMap.cellSize);
         final c = localMap.worldToCellSafe(p);
         if (c != null) {
           localMap.setFree(c);
@@ -266,7 +278,7 @@ class DroneModel {
       // Mark occupied cell at hit point
       if (hit != null) {
         final occPoint = hit.point + (-dir) * 0.02;
-        final occCell = localMap.worldToCellSafe(occPoint);
+        final occCell = localMap.worldToCellSafe(occPoint) ?? localMap.worldToCellSafe(hit.point);
         if (occCell != null) {
           localMap.setOccupied(occCell);
           globalMap.setOccupied(occCell);
@@ -382,7 +394,7 @@ class DroneModel {
 
     final wallHit = ArenaMap.circleCast(
       position,
-      droneRadius,
+      effectiveCollisionRadius,
       forward,
       stepDist + 0.02,
     );
@@ -539,7 +551,7 @@ class DroneModel {
     final forward = Vector2(math.cos(headingAngle), math.sin(headingAngle));
     final hit = ArenaMap.circleCast(
       position,
-      droneRadius,
+      effectiveCollisionRadius,
       forward,
       cornerAvoidProbe,
     );
@@ -597,7 +609,7 @@ class DroneModel {
     for (final other in allDrones) {
       if (identical(other, this)) continue;
       final d = position.distance(other.position);
-      final minDist = droneRadius * 2.0;
+      final minDist = effectiveCollisionRadius + other.effectiveCollisionRadius;
       if (d < minDist && d > 1e-4) {
         droneCollisionCount++;
         final penetration = minDist - d;

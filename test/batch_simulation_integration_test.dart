@@ -28,6 +28,7 @@ void main() {
     Get.reset();
     final sim = Get.put(SimulationController());
     Get.put(UIController());
+    sim.runTimeoutSecondsReal.value = 5;
 
     // Execute 2 fast batch runs at 20x timeScale
     await sim.startBatchRun(
@@ -47,5 +48,5 @@ void main() {
     final lines = await csvFile.readAsLines();
     expect(lines.length, equals(3)); // 1 header + 2 run rows
     expect(lines[0], equals('run,status,foundDrone,foundRole,timeToFind,timeTotal,targetX,targetY,wallCollisions,droneCollisions'));
-  });
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }

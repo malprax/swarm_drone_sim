@@ -1,8 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:swarm_drone_sim/controllers/simulation_controller.dart';
 import 'package:swarm_drone_sim/controllers/ui_controller.dart';
 import 'package:swarm_drone_sim/models/vector2.dart';
+import 'package:swarm_drone_sim/views/arena_canvas.dart';
 
 void main() {
   group('Zoom & Camera Controller Tests', () {
@@ -81,6 +84,59 @@ void main() {
       // Toggle again should release follow
       ui.toggleFollowDrone(0, viewport, dronePos);
       expect(ui.followingDroneIndex.value, equals(-1));
+    });
+
+    testWidgets('ArenaCanvas responds to mouse wheel and mouse movement zoom', (tester) async {
+      Get.reset();
+      final sim = Get.put(SimulationController());
+      final uiController = Get.put(UIController());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 600,
+              child: ArenaCanvas(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(uiController.zoom.value, equals(1.0));
+
+      // 1. Mouse Scroll Wheel Up -> Zoom In
+      final center = tester.getCenter(find.byType(ArenaCanvas));
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      pointer.hover(center);
+
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, -20)));
+      await tester.pumpAndSettle();
+
+      expect(uiController.zoom.value, greaterThan(1.10)); // Noticeable zoom in
+
+      // 2. Mouse Scroll Wheel Down -> Zoom Out
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, 40)));
+      await tester.pumpAndSettle();
+
+      expect(uiController.zoom.value, lessThan(1.10));
+
+      // 3. Right-Click Drag Mouse Movement Up -> Zoom In
+      await tester.sendEventToBinding(pointer.down(center, buttons: kSecondaryMouseButton));
+      await tester.pump();
+      await tester.sendEventToBinding(pointer.move(center - const Offset(0, 40), buttons: kSecondaryMouseButton));
+      await tester.pumpAndSettle();
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pumpAndSettle();
+
+      expect(uiController.zoom.value, greaterThan(1.10)); // Mouse movement zoomed in!
+
+      // 4. Quick Zoom Slider in HUD
+      final sliderFinder = find.byType(Slider);
+      expect(sliderFinder, findsOneWidget);
+
+      sim.stopRun();
     });
   });
 }

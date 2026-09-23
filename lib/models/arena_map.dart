@@ -1,6 +1,18 @@
 import 'dart:math' as math;
 import 'vector2.dart';
 
+/// Represents an oriented wall surface facing the walkable arena rooms
+class WallSurface {
+  final Vector2 start;
+  final Vector2 end;
+  final Vector2 normal;
+  final String name;
+
+  const WallSurface(this.start, this.end, this.normal, {this.name = ''});
+
+  double get length => start.distance(end);
+}
+
 /// Defines the arena layout, walls, rooms, start positions, and raycasting
 class ArenaMap {
   /// Exact 12 wall bounding boxes ported directly from Unity scene (Main.unity)
@@ -20,6 +32,46 @@ class ArenaMap {
     Rect2D(3.617, -1.403, 4.100, 3.105, name: 'wall_room24'),
     Rect2D(1.974, 3.089, 7.127, 3.572, name: 'wall_room25'),
     Rect2D(2.007, 3.089, 7.159, 3.572, name: 'wall_room26'),
+  ];
+
+  /// Room-facing wall boundary surfaces for rendering stylized detected wall contours
+  static final List<WallSurface> wallSurfaces = [
+    // 1. Outer boundaries (interior room faces)
+    const WallSurface(Vector2(-13.998, -4.124), Vector2(14.018, -4.124), Vector2(0.0, 1.0), name: 'outer_bottom'),
+    const WallSurface(Vector2(-13.998, -4.124), Vector2(-13.998, 9.884), Vector2(1.0, 0.0), name: 'outer_left'),
+    const WallSurface(Vector2(14.018, -4.124), Vector2(14.018, 9.884), Vector2(-1.0, 0.0), name: 'outer_right'),
+    const WallSurface(Vector2(-13.998, 9.884), Vector2(-6.994, 9.884), Vector2(0.0, -1.0), name: 'outer_top_west'),
+    const WallSurface(Vector2(-1.278, 9.884), Vector2(14.018, 9.884), Vector2(0.0, -1.0), name: 'outer_top_east'),
+
+    // 2. Interior partition: wall_room12
+    const WallSurface(Vector2(-7.477, -1.548), Vector2(-7.477, 9.884), Vector2(-1.0, 0.0), name: 'room12_west'),
+    const WallSurface(Vector2(-6.994, -1.548), Vector2(-6.994, 3.089), Vector2(1.0, 0.0), name: 'room12_east_lower'),
+    const WallSurface(Vector2(-6.994, 3.572), Vector2(-6.994, 9.884), Vector2(1.0, 0.0), name: 'room12_east_upper'),
+    const WallSurface(Vector2(-7.477, -1.548), Vector2(-6.994, -1.548), Vector2(0.0, -1.0), name: 'room12_south_cap'),
+
+    // 3. Interior partition: wall_room2
+    const WallSurface(Vector2(-6.994, 3.089), Vector2(-0.795, 3.089), Vector2(0.0, -1.0), name: 'room2_south'),
+    const WallSurface(Vector2(-6.994, 3.572), Vector2(-1.278, 3.572), Vector2(0.0, 1.0), name: 'room2_north'),
+    const WallSurface(Vector2(-0.795, 3.089), Vector2(-0.795, 3.572), Vector2(1.0, 0.0), name: 'room2_east_cap'),
+
+    // 4. Interior partition: wall_room22
+    const WallSurface(Vector2(-1.278, 3.572), Vector2(-1.278, 9.884), Vector2(-1.0, 0.0), name: 'room22_west'),
+    const WallSurface(Vector2(-0.795, 3.524), Vector2(-0.795, 9.884), Vector2(1.0, 0.0), name: 'room22_east'),
+
+    // 5. Interior partition: wall_room23
+    const WallSurface(Vector2(6.676, 3.572), Vector2(6.676, 9.868), Vector2(-1.0, 0.0), name: 'room23_west'),
+    const WallSurface(Vector2(7.159, 3.572), Vector2(7.159, 9.868), Vector2(1.0, 0.0), name: 'room23_east'),
+    const WallSurface(Vector2(6.676, 3.427), Vector2(7.159, 3.427), Vector2(0.0, -1.0), name: 'room23_south_cap'),
+
+    // 6. Interior partition: wall_room24
+    const WallSurface(Vector2(3.617, -1.403), Vector2(3.617, 3.089), Vector2(-1.0, 0.0), name: 'room24_west'),
+    const WallSurface(Vector2(4.100, -1.403), Vector2(4.100, 3.089), Vector2(1.0, 0.0), name: 'room24_east'),
+    const WallSurface(Vector2(3.617, -1.403), Vector2(4.100, -1.403), Vector2(0.0, -1.0), name: 'room24_south_cap'),
+
+    // 7. Interior partition: wall_room25 & 26
+    const WallSurface(Vector2(1.974, 3.572), Vector2(6.676, 3.572), Vector2(0.0, 1.0), name: 'room25_north'),
+    const WallSurface(Vector2(1.974, 3.089), Vector2(7.159, 3.089), Vector2(0.0, -1.0), name: 'room25_south'),
+    const WallSurface(Vector2(1.974, 3.089), Vector2(1.974, 3.572), Vector2(-1.0, 0.0), name: 'room25_west_cap'),
   ];
 
   /// Fixed default start positions from Unity SimManager

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../controllers/simulation_controller.dart';
 import '../controllers/ui_controller.dart';
@@ -8,6 +9,8 @@ import '../models/arena_map.dart';
 import '../models/drone_model.dart';
 import '../models/grid_map_2d.dart';
 import '../models/vector2.dart';
+import 'widgets/layout_preset_selector.dart';
+import 'widgets/wall_line_customizer.dart';
 
 class ArenaCanvas extends StatefulWidget {
   const ArenaCanvas({super.key});
@@ -22,6 +25,9 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
   Offset _startPan = Offset.zero;
   double _panZoomStartScale = 1.0;
   Offset _panZoomStartPan = Offset.zero;
+
+  // Mouse Movement Zooming state (Right-click drag, Middle-click drag, Shift/Ctrl+Drag)
+  bool _isMouseZooming = false;
 
   // Interactive Gizmo manipulation state
   bool _isDraggingGizmo = false;
@@ -62,15 +68,28 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
               // Mouse Scroll Wheel or Trackpad 2-finger scroll
               onPointerSignal: (pointerSignal) {
                 if (pointerSignal is PointerScrollEvent) {
-                  final dy = pointerSignal.scrollDelta.dy;
-                  if (dy.abs() > 0.01) {
-                    // Smooth, natural exponential zoom responding directly to trackpad / wheel scroll delta
-                    final factor = math.exp(-dy * 0.0018).clamp(0.85, 1.18);
+                  // Check vertical dy, fallback to horizontal dx (for tilt-wheel or Shift-scroll)
+                  final dy = pointerSignal.scrollDelta.dy.abs() > 0.05
+                      ? pointerSignal.scrollDelta.dy
+                      : pointerSignal.scrollDelta.dx;
+                  if (dy.abs() > 0.05) {
+                    final double factor;
+                    if (dy < 0) {
+                      // Scroll Up / Forward -> Zoom IN
+                      // Guaranteed minimum step of 12% per notch, up to 35% for fast swiping
+                      final step = math.max(0.12, math.min(0.35, dy.abs() * 0.005));
+                      factor = 1.0 + step;
+                    } else {
+                      // Scroll Down / Backward -> Zoom OUT
+                      final step = math.max(0.12, math.min(0.35, dy.abs() * 0.005));
+                      factor = 1.0 / (1.0 + step);
+                    }
                     ui.zoomBy(
                       factor,
                       focalPoint: pointerSignal.localPosition,
                       viewportSize: viewportSize,
                     );
+                    ui.followingDroneIndex.value = -1;
                   }
                 }
               },
@@ -80,7 +99,7 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                 _panZoomStartPan = ui.panOffset.value;
               },
               onPointerPanZoomUpdate: (event) {
-                if (_isDraggingGizmo) return; // Prioritize gizmo dragging
+                if (_isDraggingGizmo || _isMouseZooming) return;
 
                 if (event.scale != 1.0 && event.scale > 0) {
                   final newZoom = (_panZoomStartScale * event.scale)
@@ -104,6 +123,24 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                 _didDragGizmo = false;
                 _didPanCanvas = false;
                 _dragDroneIndex = -2; // -2 = empty background
+
+                // Check if user is initiating zoom with mouse movement:
+                // 1. Right mouse button (kSecondaryMouseButton)
+                // 2. Middle mouse button / scroll wheel click (kTertiaryMouseButton)
+                // 3. Left click while holding Shift, Ctrl, Alt, or Cmd
+                final isRightClick = (event.buttons & kSecondaryMouseButton) != 0;
+                final isMiddleClick = (event.buttons & kMiddleMouseButton) != 0;
+                final isModifierZoom = (event.buttons & kPrimaryMouseButton) != 0 &&
+                    (HardwareKeyboard.instance.isShiftPressed ||
+                     HardwareKeyboard.instance.isControlPressed ||
+                     HardwareKeyboard.instance.isMetaPressed ||
+                     HardwareKeyboard.instance.isAltPressed);
+
+                if (isRightClick || isMiddleClick || isModifierZoom) {
+                  _isMouseZooming = true;
+                  return;
+                }
+                _isMouseZooming = false;
 
                 if (sim.isRunning || sim.isRealDroneMode) return;
 
@@ -179,6 +216,30 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                 }
               },
               onPointerMove: (event) {
+                if (_isMouseZooming) {
+                  final dy = event.localPosition.dy - _lastPointerScreen.dy;
+                  if (dy.abs() > 0.5) {
+                    // Dragging mouse UP (negative dy) -> Zoom IN!
+                    // Dragging mouse DOWN (positive dy) -> Zoom OUT!
+                    final double factor;
+                    if (dy < 0) {
+                      final step = (-dy * 0.012).clamp(0.01, 0.20);
+                      factor = 1.0 + step;
+                    } else {
+                      final step = (dy * 0.012).clamp(0.01, 0.20);
+                      factor = 1.0 / (1.0 + step);
+                    }
+                    ui.zoomBy(
+                      factor,
+                      focalPoint: event.localPosition,
+                      viewportSize: viewportSize,
+                    );
+                    ui.followingDroneIndex.value = -1;
+                  }
+                  _lastPointerScreen = event.localPosition;
+                  return;
+                }
+
                 if (_isDraggingGizmo) {
                   _didDragGizmo = true;
                   final deltaScreen = event.localPosition - _lastPointerScreen;
@@ -219,6 +280,11 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                 }
               },
               onPointerUp: (event) {
+                if (_isMouseZooming) {
+                  _isMouseZooming = false;
+                  return;
+                }
+
                 if (_isDraggingGizmo) {
                   _isDraggingGizmo = false;
                   _activeDragAxis = GizmoAxis.none;
@@ -235,12 +301,12 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onScaleStart: (details) {
-                  if (_isDraggingGizmo) return;
+                  if (_isDraggingGizmo || _isMouseZooming) return;
                   _startZoom = ui.zoom.value;
                   _startPan = ui.panOffset.value;
                 },
                 onScaleUpdate: (details) {
-                  if (_isDraggingGizmo) return; // Prevent canvas pan while dragging gizmo handle
+                  if (_isDraggingGizmo || _isMouseZooming) return; // Prevent canvas pan while dragging gizmo or zooming
 
                   if (details.scale != 1.0) {
                     // Pinch to zoom on trackpad or touchscreen
@@ -306,17 +372,30 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                       gizmoMode: currentGizmoMode,
                       activeGizmoAxis: currentActiveAxis,
                       activeGizmoDroneIndex: currentActiveDrone,
+                      wallLineThickness: ui.wallLineThickness.value,
+                      wallLineStyle: ui.wallLineStyle.value,
                     ),
                   );
                 }),
               ),
             ),
 
-            // 2. Floating Zoom & Camera HUD (Top-Right)
+            // 2. Floating Top-Right Toolbars (Aligned side-by-side)
+            // [ Wall Line Customizer ] + [ Layout Preset Selector ] + [ Camera Zoom & Focus HUD ]
             Positioned(
               top: 10,
               right: 10,
-              child: _FloatingZoomHUD(viewportSize: viewportSize),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const WallLineCustomizerWidget(),
+                  const SizedBox(width: 6),
+                  const LayoutPresetSelector(showHeader: true),
+                  const SizedBox(width: 6),
+                  _FloatingZoomHUD(viewportSize: viewportSize),
+                ],
+              ),
             ),
 
             // 3. Floating Bottom Instruction Helper & Position Lock Indicator
@@ -401,7 +480,7 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                           child: Text(
                             isReal
                                 ? '🛸 Real Drone Mode • Memetakan ruangan fisik dengan 5 LiDAR • Zoom: $curZoom%'
-                                : 'Zoom: $curZoom% • Putar wheel mouse / pinch trackpad untuk zoom • Geser untuk pan',
+                                : 'Zoom: $curZoom% • Scroll Wheel / Klik-Kanan Geser Mouse / Shift+Geser = Zoom • Klik-Kiri = Pan',
                             style: const TextStyle(color: Colors.white70, fontSize: 10),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -453,13 +532,13 @@ class _FloatingZoomHUD extends StatelessWidget {
     final ui = Get.find<UIController>();
 
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xDD1E293B),
+        color: const Color(0xEE0B1120),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4), width: 1.2),
+        border: Border.all(color: const Color(0xFF334155), width: 1.0),
         boxShadow: const [
-          BoxShadow(color: Colors.black45, blurRadius: 8, offset: Offset(0, 3)),
+          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -473,12 +552,37 @@ class _FloatingZoomHUD extends StatelessWidget {
               IconButton(
                 onPressed: () => ui.zoomOut(viewportSize: viewportSize),
                 icon: const Icon(Icons.remove, size: 16, color: Colors.white),
-                tooltip: 'Zoom Out (Scroll Down / Pinch In)',
+                tooltip: 'Zoom Out (Scroll Down / Klik-Kanan Geser Bawah)',
                 style: IconButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
                   padding: const EdgeInsets.all(6),
                   visualDensity: VisualDensity.compact,
                 ),
+              ),
+              const SizedBox(width: 4),
+
+              // Interactive Quick Zoom Slider for direct mouse dragging
+              SizedBox(
+                width: 75,
+                child: Obx(() => SliderTheme(
+                  data: const SliderThemeData(
+                    trackHeight: 3,
+                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 5),
+                    overlayShape: RoundSliderOverlayShape(overlayRadius: 8),
+                    activeTrackColor: Colors.cyanAccent,
+                    inactiveTrackColor: Colors.white24,
+                    thumbColor: Colors.cyanAccent,
+                  ),
+                  child: Slider(
+                    value: ui.zoom.value.clamp(UIController.minZoom, UIController.maxZoom),
+                    min: UIController.minZoom,
+                    max: UIController.maxZoom,
+                    onChanged: (val) {
+                      ui.zoom.value = val;
+                      ui.followingDroneIndex.value = -1;
+                    },
+                  ),
+                )),
               ),
               const SizedBox(width: 4),
 
@@ -512,7 +616,7 @@ class _FloatingZoomHUD extends StatelessWidget {
               IconButton(
                 onPressed: () => ui.zoomIn(viewportSize: viewportSize),
                 icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                tooltip: 'Zoom In (Scroll Up / Pinch Out)',
+                tooltip: 'Zoom In (Scroll Up / Klik-Kanan Geser Atas)',
                 style: IconButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
                   padding: const EdgeInsets.all(6),
@@ -611,6 +715,8 @@ class ArenaPainter extends CustomPainter {
   final GizmoMode gizmoMode;
   final GizmoAxis activeGizmoAxis;
   final int activeGizmoDroneIndex;
+  final int wallLineThickness;
+  final WallLineStyle wallLineStyle;
 
   ArenaPainter({
     required this.sim,
@@ -627,6 +733,8 @@ class ArenaPainter extends CustomPainter {
     required this.gizmoMode,
     required this.activeGizmoAxis,
     required this.activeGizmoDroneIndex,
+    required this.wallLineThickness,
+    required this.wallLineStyle,
   });
 
   static const double worldCenterX = 0.0;
@@ -654,9 +762,9 @@ class ArenaPainter extends CustomPainter {
     // 1. Draw Floor & Coordinate Grid
     _drawFloor(canvas, size, worldToScreen, baseScale);
 
-    // 2. Draw Occupancy Grid Map
-    if (gridVisible) {
-      _drawOccupancyGrid(canvas, worldToScreen, baseScale);
+    // 2. Draw Walls (Simulation mode only - base floor structure)
+    if (!sim.isRealDroneMode) {
+      _drawWalls(canvas, worldToScreen, toScreenDist);
     }
 
     // 3. Draw Target Spawn Area bounds (Simulation mode only)
@@ -664,16 +772,21 @@ class ArenaPainter extends CustomPainter {
       _drawTargetArea(canvas, worldToScreen);
     }
 
-    // 4. Draw Walls (Simulation mode only - Real mode discovers walls dynamically via LiDAR)
-    if (!sim.isRealDroneMode) {
-      _drawWalls(canvas, worldToScreen, toScreenDist);
+    // 4. Draw Occupancy Grid Map (LiDAR discovered free space in cyan)
+    if (gridVisible) {
+      _drawOccupancyGrid(canvas, worldToScreen, baseScale);
     }
 
-    // 5. Draw HomeBase or Real Drone Start Point (0,0)
+    // 4b. Draw Detected Wall Red Lines with custom thickness & pattern
+    if (wallLineThickness > 0) {
+      _drawDetectedWallLines(canvas, worldToScreen, baseScale);
+    }
+
+    // 5. Draw Dynamic HomeBases or Real Drone Start Point (0,0)
     if (sim.isRealDroneMode) {
       _drawRealDroneOrigin(canvas, worldToScreen, toSDist: toScreenDist);
     } else {
-      _drawHomeBase(canvas, worldToScreen, toScreenDist);
+      _drawDynamicHomeBases(canvas, worldToScreen, toScreenDist);
     }
 
     // 6. Draw Target (Simulation mode only)
@@ -911,7 +1024,7 @@ class ArenaPainter extends CustomPainter {
 
   void _drawOccupancyGrid(Canvas canvas, Offset Function(Vector2) w2s, double scale) {
     final map = sim.map;
-    final cellPixelSize = math.max(1.0, map.cellSize * scale);
+    final cellPixelSize = math.max(1.2, map.cellSize * scale);
 
     final freePaint = Paint()
       ..color = sim.isRealDroneMode
@@ -919,16 +1032,10 @@ class ArenaPainter extends CustomPainter {
           : const Color(0x2238BDF8)
       ..style = PaintingStyle.fill;
 
-    final occupiedPaint = Paint()
-      ..color = sim.isRealDroneMode
-          ? const Color(0xFFEF4444)
-          : const Color(0x66DC2626)
-      ..style = PaintingStyle.fill;
-
     for (int y = 0; y < map.height; y += 1) {
       for (int x = 0; x < map.width; x += 1) {
         final val = map.rawGrid[y * map.width + x];
-        if (val == GridMap2D.unknown) continue;
+        if (val != GridMap2D.free) continue;
 
         final centerW = map.cellToWorldCenter(Vector2Int(x, y));
         final screenCenter = w2s(centerW);
@@ -938,12 +1045,234 @@ class ArenaPainter extends CustomPainter {
           height: cellPixelSize,
         );
 
-        if (val == GridMap2D.free) {
-          canvas.drawRect(rect, freePaint);
-        } else if (val == GridMap2D.occupied) {
-          canvas.drawRect(rect, occupiedPaint);
+        canvas.drawRect(rect, freePaint);
+      }
+    }
+  }
+
+  double _getWallStrokeWidth() {
+    switch (wallLineThickness) {
+      case 1:
+        return 1.4;
+      case 2:
+        return 2.6;
+      case 3:
+        return 4.0;
+      default:
+        return 0.0;
+    }
+  }
+
+  void _drawDetectedWallLines(
+    Canvas canvas,
+    Offset Function(Vector2) w2s,
+    double scale,
+  ) {
+    final strokeWidth = _getWallStrokeWidth();
+    if (strokeWidth <= 0.0) return;
+
+    final paint = Paint()
+      ..color = const Color(0xFFEF4444)
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    if (sim.isRealDroneMode) {
+      // Real Drone Mode: Extract outer boundary edges of all occupied cells adjacent to free space
+      _drawRealDroneDetectedWalls(canvas, w2s, scale, paint, strokeWidth);
+    } else {
+      // Simulation Mode: Sample along all room-facing wall surfaces
+      _drawSimModeDetectedWalls(canvas, w2s, paint, strokeWidth);
+    }
+  }
+
+  void _drawSimModeDetectedWalls(
+    Canvas canvas,
+    Offset Function(Vector2) w2s,
+    Paint paint,
+    double strokeWidth,
+  ) {
+    const double step = 0.15;
+
+    for (final surface in ArenaMap.wallSurfaces) {
+      final p0 = surface.start;
+      final p1 = surface.end;
+      final totalLen = surface.length;
+      if (totalLen < 0.05) continue;
+      final dir = (p1 - p0).normalized;
+      final norm = surface.normal;
+
+      final int numSamples = (totalLen / step).ceil();
+      double? currentSegStart;
+
+      for (int i = 0; i <= numSamples; i++) {
+        final double dist = math.min(i * step, totalLen);
+        final samplePoint = p0 + dir * dist;
+
+        final isDetected = _isWallPointDetected(samplePoint, norm);
+
+        if (isDetected) {
+          currentSegStart ??= dist;
+        } else {
+          if (currentSegStart != null) {
+            final segEnd = math.max(currentSegStart + 0.05, (i - 1) * step);
+            final sA = w2s(p0 + dir * currentSegStart);
+            final sB = w2s(p0 + dir * segEnd);
+            _drawStylizedSegment(canvas, sA, sB, paint, wallLineStyle, strokeWidth);
+            currentSegStart = null;
+          }
         }
       }
+
+      if (currentSegStart != null) {
+        final sA = w2s(p0 + dir * currentSegStart);
+        final sB = w2s(p1);
+        _drawStylizedSegment(canvas, sA, sB, paint, wallLineStyle, strokeWidth);
+      }
+    }
+  }
+
+  bool _isWallPointDetected(Vector2 pt, Vector2 norm) {
+    final offsets = [
+      Vector2.zero,
+      norm * 0.08,
+      -norm * 0.08,
+      norm * 0.18,
+      -norm * 0.18,
+      -norm * 0.32,
+    ];
+    for (final off in offsets) {
+      final c = sim.map.worldToCellSafe(pt + off);
+      if (c != null && sim.map.isOccupied(c)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _drawRealDroneDetectedWalls(
+    Canvas canvas,
+    Offset Function(Vector2) w2s,
+    double scale,
+    Paint paint,
+    double strokeWidth,
+  ) {
+    final map = sim.map;
+    final cs = map.cellSize;
+    final ox = map.originWorld.x;
+    final oy = map.originWorld.y;
+
+    for (int y = 0; y < map.height; y++) {
+      for (int x = 0; x < map.width; x++) {
+        if (!map.isOccupied(Vector2Int(x, y))) continue;
+
+        // South edge (adjacent to free cell below)
+        if (y > 0 && map.isFree(Vector2Int(x, y - 1))) {
+          final sA = w2s(Vector2(ox + x * cs, oy + y * cs));
+          final sB = w2s(Vector2(ox + (x + 1) * cs, oy + y * cs));
+          _drawStylizedSegment(canvas, sA, sB, paint, wallLineStyle, strokeWidth);
+        }
+
+        // North edge (adjacent to free cell above)
+        if (y < map.height - 1 && map.isFree(Vector2Int(x, y + 1))) {
+          final sA = w2s(Vector2(ox + x * cs, oy + (y + 1) * cs));
+          final sB = w2s(Vector2(ox + (x + 1) * cs, oy + (y + 1) * cs));
+          _drawStylizedSegment(canvas, sA, sB, paint, wallLineStyle, strokeWidth);
+        }
+
+        // West edge (adjacent to free cell on left)
+        if (x > 0 && map.isFree(Vector2Int(x - 1, y))) {
+          final sA = w2s(Vector2(ox + x * cs, oy + y * cs));
+          final sB = w2s(Vector2(ox + x * cs, oy + (y + 1) * cs));
+          _drawStylizedSegment(canvas, sA, sB, paint, wallLineStyle, strokeWidth);
+        }
+
+        // East edge (adjacent to free cell on right)
+        if (x < map.width - 1 && map.isFree(Vector2Int(x + 1, y))) {
+          final sA = w2s(Vector2(ox + (x + 1) * cs, oy + y * cs));
+          final sB = w2s(Vector2(ox + (x + 1) * cs, oy + (y + 1) * cs));
+          _drawStylizedSegment(canvas, sA, sB, paint, wallLineStyle, strokeWidth);
+        }
+      }
+    }
+  }
+
+  void _drawStylizedSegment(
+    Canvas canvas,
+    Offset pA,
+    Offset pB,
+    Paint paint,
+    WallLineStyle style,
+    double strokeWidth,
+  ) {
+    final delta = pB - pA;
+    final len = delta.distance;
+    if (len < 1.0) return;
+
+    final dir = delta / len;
+    final normal = Offset(-dir.dy, dir.dx);
+
+    switch (style) {
+      case WallLineStyle.solid:
+        canvas.drawLine(pA, pB, paint);
+        break;
+
+      case WallLineStyle.dashed:
+        const dDash = 7.0;
+        const dGap = 5.0;
+        const period = dDash + dGap;
+        final path = Path();
+        double d = 0;
+        while (d < len) {
+          final dEnd = math.min(d + dDash, len);
+          path.moveTo(pA.dx + dir.dx * d, pA.dy + dir.dy * d);
+          path.lineTo(pA.dx + dir.dx * dEnd, pA.dy + dir.dy * dEnd);
+          d += period;
+        }
+        canvas.drawPath(path, paint);
+        break;
+
+      case WallLineStyle.zigzag:
+        const hw = 4.5; // half wave length
+        final amp = 2.2 + strokeWidth * 0.45;
+        final path = Path();
+        path.moveTo(pA.dx, pA.dy);
+        double d = 0;
+        bool up = true;
+        while (d < len) {
+          final nextD = math.min(d + hw, len);
+          final midD = (d + nextD) * 0.5;
+          final sign = up ? 1.0 : -1.0;
+          final peak = pA + dir * midD + normal * (amp * sign);
+          path.lineTo(peak.dx, peak.dy);
+          final valley = pA + dir * nextD;
+          path.lineTo(valley.dx, valley.dy);
+          d += hw;
+          up = !up;
+        }
+        canvas.drawPath(path, paint);
+        break;
+
+      case WallLineStyle.wavy:
+        const hw = 6.0; // half wave length
+        final amp = 2.4 + strokeWidth * 0.45;
+        final path = Path();
+        path.moveTo(pA.dx, pA.dy);
+        double d = 0;
+        bool up = true;
+        while (d < len) {
+          final nextD = math.min(d + hw, len);
+          final midD = (d + nextD) * 0.5;
+          final sign = up ? 1.0 : -1.0;
+          final ctrl = pA + dir * midD + normal * (amp * sign);
+          final endPt = pA + dir * nextD;
+          path.quadraticBezierTo(ctrl.dx, ctrl.dy, endPt.dx, endPt.dy);
+          d += hw;
+          up = !up;
+        }
+        canvas.drawPath(path, paint);
+        break;
     }
   }
 
@@ -985,39 +1314,238 @@ class ArenaPainter extends CustomPainter {
     }
   }
 
-  void _drawHomeBase(
+  /// Dynamic Home Bases: draws individual launch/return pads at each active drone's returnHomePos.
+  /// When drones are randomized or moved, the H pad dynamically moves with each drone.
+  /// If all drones are at default positions, also draws a clean hangar bay apron.
+  void _drawDynamicHomeBases(
     Canvas canvas,
     Offset Function(Vector2) w2s,
     double Function(double) toSDist,
   ) {
-    final homePos = w2s(ArenaMap.defaultHomeBase);
-    final radius = toSDist(1.5);
+    final activeDrones = sim.activeDrones;
+    if (activeDrones.isEmpty) return;
 
-    canvas.drawCircle(
-      homePos,
-      radius,
-      Paint()
-        ..color = Colors.tealAccent.withValues(alpha: 0.15)
-        ..style = PaintingStyle.fill,
+    final bool isSingle = activeDrones.length == 1;
+
+    // Check if all active drones are still at their default initial positions
+    final bool allAtDefault = activeDrones.every(
+      (d) => d.returnHomePos.distance(ArenaMap.defaultStartPositions[d.teamIndex]) < 0.05,
     );
 
-    canvas.drawCircle(
-      homePos,
-      radius,
+    // If all active drones are at default positions with multiple drones, draw default hangar bay apron
+    if (allAtDefault && activeDrones.length > 1) {
+      _drawDefaultHangarApron(canvas, w2s, toSDist);
+    }
+
+    for (int i = 0; i < activeDrones.length; i++) {
+      final drone = activeDrones[i];
+      final homeWorld = drone.returnHomePos;
+      final homeScreen = w2s(homeWorld);
+      final padRadius = math.max(16.0, toSDist(0.75));
+      final color = drone.ledColor;
+      final isReturning = drone.status == DroneStatus.returnHome;
+
+      // 1. Pulsing beacon wave & guide path when returning home
+      if (isReturning) {
+        final pulse = (elapsedTime * 2.0) % 1.0;
+        final pulseRadius = padRadius * (1.0 + pulse * 0.9);
+        final pulseAlpha = (1.0 - pulse) * 0.45;
+        canvas.drawCircle(
+          homeScreen,
+          pulseRadius,
+          Paint()
+            ..color = color.withValues(alpha: pulseAlpha)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.0,
+        );
+
+        // Dashed trajectory vector from returning drone to its home pad
+        final droneScreen = w2s(drone.position);
+        _drawDashedGuideLine(canvas, droneScreen, homeScreen, color.withValues(alpha: 0.5));
+      }
+
+      // 2. Landing pad fill (subtle glow)
+      canvas.drawCircle(
+        homeScreen,
+        padRadius,
+        Paint()
+          ..color = color.withValues(alpha: 0.10)
+          ..style = PaintingStyle.fill,
+      );
+
+      // 3. Outer boundary ring
+      canvas.drawCircle(
+        homeScreen,
+        padRadius,
+        Paint()
+          ..color = color.withValues(alpha: 0.85)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+
+      // 4. Inner subtle ring
+      canvas.drawCircle(
+        homeScreen,
+        padRadius * 0.72,
+        Paint()
+          ..color = color.withValues(alpha: 0.30)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+
+      // 5. Cardinal alignment ticks on outer ring (N, S, E, W)
+      final tickLen = padRadius * 0.22;
+      final tickPaint = Paint()
+        ..color = color.withValues(alpha: 0.85)
+        ..strokeWidth = 1.5;
+      canvas.drawLine(homeScreen + Offset(0, -padRadius), homeScreen + Offset(0, -padRadius + tickLen), tickPaint);
+      canvas.drawLine(homeScreen + Offset(0, padRadius), homeScreen + Offset(0, padRadius - tickLen), tickPaint);
+      canvas.drawLine(homeScreen + Offset(-padRadius, 0), homeScreen + Offset(-padRadius + tickLen, 0), tickPaint);
+      canvas.drawLine(homeScreen + Offset(padRadius, 0), homeScreen + Offset(padRadius - tickLen, 0), tickPaint);
+
+      // 6. Center bold 'H' symbol
+      final hSize = padRadius * 0.42;
+      final hHalfW = hSize * 0.65;
+      final hPaint = Paint()
+        ..color = color
+        ..strokeWidth = math.max(2.0, toSDist(0.06))
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawLine(
+        homeScreen + Offset(-hHalfW, -hSize),
+        homeScreen + Offset(-hHalfW, hSize),
+        hPaint,
+      );
+      canvas.drawLine(
+        homeScreen + Offset(hHalfW, -hSize),
+        homeScreen + Offset(hHalfW, hSize),
+        hPaint,
+      );
+      canvas.drawLine(
+        homeScreen + Offset(-hHalfW, 0),
+        homeScreen + Offset(hHalfW, 0),
+        hPaint,
+      );
+
+      // 7. Pill badge label below landing pad
+      final labelText = isSingle
+          ? (allAtDefault ? 'HOME BASE' : 'HOME (D1)')
+          : 'HOME D${drone.teamIndex + 1}${drone.role == DroneRole.leader ? ' ★' : ''}';
+      _drawPadBadge(canvas, homeScreen, padRadius, labelText, color);
+    }
+  }
+
+  void _drawPadBadge(
+    Canvas canvas,
+    Offset homeScreen,
+    double padRadius,
+    String text,
+    Color color,
+  ) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 8.5,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.6,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final badgeCenter = homeScreen + Offset(0, padRadius + 9.0);
+    final badgeRect = Rect.fromCenter(
+      center: badgeCenter,
+      width: tp.width + 10.0,
+      height: tp.height + 4.0,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badgeRect, const Radius.circular(4.0)),
+      Paint()..color = const Color(0xDD0F172A),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badgeRect, const Radius.circular(4.0)),
       Paint()
-        ..color = Colors.tealAccent.withValues(alpha: 0.8)
+        ..color = color.withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+        ..strokeWidth = 0.8,
     );
 
-    final hPaint = Paint()
-      ..color = Colors.tealAccent
-      ..strokeWidth = 2.0;
+    tp.paint(canvas, badgeCenter - Offset(tp.width / 2, tp.height / 2));
+  }
 
-    final hSize = radius * 0.45;
-    canvas.drawLine(homePos + Offset(-hSize, -hSize), homePos + Offset(-hSize, hSize), hPaint);
-    canvas.drawLine(homePos + Offset(hSize, -hSize), homePos + Offset(hSize, hSize), hPaint);
-    canvas.drawLine(homePos + Offset(-hSize, 0), homePos + Offset(hSize, 0), hPaint);
+  void _drawDefaultHangarApron(
+    Canvas canvas,
+    Offset Function(Vector2) w2s,
+    double Function(double) toSDist,
+  ) {
+    final pTopLeft = w2s(const Vector2(-6.6, 2.4));
+    final pBottomRight = w2s(const Vector2(-0.8, 0.4));
+    final apronRect = Rect.fromPoints(pTopLeft, pBottomRight);
+
+    // Subtle hangar boundary fill
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(apronRect, const Radius.circular(8.0)),
+      Paint()..color = const Color(0xFF0F766E).withValues(alpha: 0.08),
+    );
+
+    // Subtle dashed or thin border
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(apronRect, const Radius.circular(8.0)),
+      Paint()
+        ..color = Colors.tealAccent.withValues(alpha: 0.3)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'DEFAULT BASE HANGAR (BAY 1-3)',
+        style: TextStyle(
+          color: Colors.tealAccent,
+          fontSize: 8.0,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.8,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    tp.paint(canvas, Offset(apronRect.left + 8.0, apronRect.top + 4.0));
+  }
+
+  void _drawDashedGuideLine(
+    Canvas canvas,
+    Offset p1,
+    Offset p2,
+    Color color,
+  ) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    final dx = p2.dx - p1.dx;
+    final dy = p2.dy - p1.dy;
+    final dist = math.sqrt(dx * dx + dy * dy);
+    if (dist < 1.0) return;
+
+    const dashLen = 5.0;
+    const gapLen = 4.0;
+    final ux = dx / dist;
+    final uy = dy / dist;
+
+    double curr = 0.0;
+    while (curr < dist) {
+      final start = p1 + Offset(ux * curr, uy * curr);
+      final segLen = math.min(dashLen, dist - curr);
+      final end = p1 + Offset(ux * (curr + segLen), uy * (curr + segLen));
+      canvas.drawLine(start, end, paint);
+      curr += dashLen + gapLen;
+    }
   }
 
   void _drawRealDroneOrigin(
@@ -1222,7 +1750,11 @@ class ArenaPainter extends CustomPainter {
   }
 
   void _drawDroneHardwareAndFrame(Canvas canvas, DroneModel drone, double r) {
-    final dArm = r * 0.85;
+    // Physical arm span: motor hubs at (±dArm, ±dArm)
+    // Motor distance = dArm * sqrt(2) = 0.52 * 1.4142 * r ≈ 0.735 * r
+    // Propeller radius = propR = 0.24 * r
+    // Outer tip reach = 0.735 * r + 0.24 * r = 0.975 * r <= r (strictly within 0.38m envelope)
+    final dArm = r * 0.52;
     final propPositions = [
       Offset(-dArm, -dArm),
       Offset(dArm, -dArm),
@@ -1235,13 +1767,13 @@ class ArenaPainter extends CustomPainter {
         final guardPaint = Paint()
           ..color = const Color(0xFF475569)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = math.max(1.5, r * 0.06);
+          ..strokeWidth = math.max(1.5, r * 0.05);
         for (final pos in propPositions) {
-          canvas.drawCircle(pos, r * 0.42, guardPaint);
+          canvas.drawCircle(pos, r * 0.26, guardPaint);
         }
         final armPaint = Paint()
           ..color = const Color(0xFF64748B)
-          ..strokeWidth = math.max(2.0, r * 0.08);
+          ..strokeWidth = math.max(2.0, r * 0.07);
         canvas.drawLine(Offset(-dArm, -dArm), Offset(dArm, dArm), armPaint);
         canvas.drawLine(Offset(-dArm, dArm), Offset(dArm, -dArm), armPaint);
         break;
@@ -1249,23 +1781,23 @@ class ArenaPainter extends CustomPainter {
       case DroneFrameType.fpv:
         final carbonPaint = Paint()
           ..color = const Color(0xFF1E293B)
-          ..strokeWidth = math.max(2.5, r * 0.12)
+          ..strokeWidth = math.max(2.5, r * 0.10)
           ..strokeCap = StrokeCap.round;
         final edgePaint = Paint()
           ..color = const Color(0xFF475569)
-          ..strokeWidth = math.max(1.0, r * 0.04);
-        canvas.drawLine(Offset(-dArm * 0.8, -dArm * 1.1), Offset(dArm * 0.8, dArm * 1.1), carbonPaint);
-        canvas.drawLine(Offset(-dArm * 0.8, dArm * 1.1), Offset(dArm * 0.8, -dArm * 1.1), carbonPaint);
-        canvas.drawLine(Offset(-dArm * 0.8, -dArm * 1.1), Offset(dArm * 0.8, dArm * 1.1), edgePaint);
-        canvas.drawLine(Offset(-dArm * 0.8, dArm * 1.1), Offset(dArm * 0.8, -dArm * 1.1), edgePaint);
+          ..strokeWidth = math.max(1.0, r * 0.03);
+        canvas.drawLine(Offset(-dArm * 0.85, -dArm * 1.05), Offset(dArm * 0.85, dArm * 1.05), carbonPaint);
+        canvas.drawLine(Offset(-dArm * 0.85, dArm * 1.05), Offset(dArm * 0.85, -dArm * 1.05), carbonPaint);
+        canvas.drawLine(Offset(-dArm * 0.85, -dArm * 1.05), Offset(dArm * 0.85, dArm * 1.05), edgePaint);
+        canvas.drawLine(Offset(-dArm * 0.85, dArm * 1.05), Offset(dArm * 0.85, -dArm * 1.05), edgePaint);
 
         final camPaint = Paint()..color = Colors.black;
         canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(r * 0.45, -r * 0.2, r * 0.35, r * 0.4), const Radius.circular(2)),
+          RRect.fromRectAndRadius(Rect.fromLTWH(r * 0.25, -r * 0.12, r * 0.20, r * 0.24), const Radius.circular(2)),
           camPaint,
         );
         final lensPaint = Paint()..color = Colors.blueGrey;
-        canvas.drawCircle(Offset(r * 0.8, 0), r * 0.12, lensPaint);
+        canvas.drawCircle(Offset(r * 0.44, 0), r * 0.07, lensPaint);
         break;
 
       case DroneFrameType.cinewhoop:
@@ -1275,15 +1807,15 @@ class ArenaPainter extends CustomPainter {
         final ductBorder = Paint()
           ..color = const Color(0xFF60A5FA)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = math.max(2.0, r * 0.07);
+          ..strokeWidth = math.max(1.8, r * 0.05);
 
         for (final pos in propPositions) {
-          canvas.drawCircle(pos, r * 0.5, ductPaint);
-          canvas.drawCircle(pos, r * 0.5, ductBorder);
+          canvas.drawCircle(pos, r * 0.26, ductPaint);
+          canvas.drawCircle(pos, r * 0.26, ductBorder);
         }
         final cArmPaint = Paint()
           ..color = const Color(0xFF1E293B)
-          ..strokeWidth = math.max(2.5, r * 0.1);
+          ..strokeWidth = math.max(2.2, r * 0.08);
         canvas.drawLine(Offset(-dArm, -dArm), Offset(dArm, dArm), cArmPaint);
         canvas.drawLine(Offset(-dArm, dArm), Offset(dArm, -dArm), cArmPaint);
         break;
@@ -1291,85 +1823,85 @@ class ArenaPainter extends CustomPainter {
       case DroneFrameType.standardQuad:
         final quadArmPaint = Paint()
           ..color = const Color(0xFF334155)
-          ..strokeWidth = math.max(2.5, r * 0.12);
+          ..strokeWidth = math.max(2.2, r * 0.09);
         canvas.drawLine(Offset(-dArm, -dArm), Offset(dArm, dArm), quadArmPaint);
         canvas.drawLine(Offset(-dArm, dArm), Offset(dArm, -dArm), quadArmPaint);
 
         final skidPaint = Paint()
           ..color = const Color(0xFF0F172A)
-          ..strokeWidth = math.max(1.8, r * 0.08);
-        canvas.drawLine(Offset(-dArm * 0.6, -r * 0.7), Offset(dArm * 0.6, -r * 0.7), skidPaint);
-        canvas.drawLine(Offset(-dArm * 0.6, r * 0.7), Offset(dArm * 0.6, r * 0.7), skidPaint);
+          ..strokeWidth = math.max(1.8, r * 0.06);
+        canvas.drawLine(Offset(-dArm * 0.6, -r * 0.42), Offset(dArm * 0.6, -r * 0.42), skidPaint);
+        canvas.drawLine(Offset(-dArm * 0.6, r * 0.42), Offset(dArm * 0.6, r * 0.42), skidPaint);
         break;
     }
 
     final escPaint = Paint()..color = const Color(0xFF1E3A8A);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: r * 0.85, height: r * 0.85), const Radius.circular(3)),
+      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: r * 0.52, height: r * 0.52), const Radius.circular(2)),
       escPaint,
     );
 
     final rpiPaint = Paint()..color = const Color(0xFF15803D);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(-r * 0.05, 0), width: r * 0.68, height: r * 0.68), const Radius.circular(2)),
+      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(-r * 0.03, 0), width: r * 0.42, height: r * 0.42), const Radius.circular(2)),
       rpiPaint,
     );
     final cpuPaint = Paint()..color = const Color(0xFFD1D5DB);
-    canvas.drawRect(Rect.fromCenter(center: Offset(-r * 0.1, -r * 0.08), width: r * 0.22, height: r * 0.22), cpuPaint);
+    canvas.drawRect(Rect.fromCenter(center: Offset(-r * 0.06, -r * 0.05), width: r * 0.14, height: r * 0.14), cpuPaint);
     final usbPaint = Paint()..color = const Color(0xFF9CA3AF);
-    canvas.drawRect(Rect.fromLTWH(-r * 0.38, -r * 0.28, r * 0.1, r * 0.2), usbPaint);
-    canvas.drawRect(Rect.fromLTWH(-r * 0.38, 0.05, r * 0.1, r * 0.2), usbPaint);
+    canvas.drawRect(Rect.fromLTWH(-r * 0.23, -r * 0.17, r * 0.06, r * 0.12), usbPaint);
+    canvas.drawRect(Rect.fromLTWH(-r * 0.23, 0.03, r * 0.06, r * 0.12), usbPaint);
 
     final pixhawkPaint = Paint()..color = const Color(0xFF111827);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(r * 0.04, 0), width: r * 0.48, height: r * 0.48), const Radius.circular(2)),
+      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(r * 0.03, 0), width: r * 0.30, height: r * 0.30), const Radius.circular(2)),
       pixhawkPaint,
     );
     final arrowPaint = Paint()..color = Colors.white70;
     final arrowPath = Path()
-      ..moveTo(r * 0.2, 0)
-      ..lineTo(r * 0.08, -r * 0.08)
-      ..lineTo(r * 0.08, r * 0.08)
+      ..moveTo(r * 0.13, 0)
+      ..lineTo(r * 0.05, -r * 0.05)
+      ..lineTo(r * 0.05, r * 0.05)
       ..close();
     canvas.drawPath(arrowPath, arrowPaint);
 
     final batteryPaint = Paint()..color = const Color(0xFFEAB308);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(-r * 0.35, 0), width: r * 0.28, height: r * 0.5), const Radius.circular(2)),
+      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(-r * 0.21, 0), width: r * 0.18, height: r * 0.32), const Radius.circular(2)),
       batteryPaint,
     );
     final xt60Paint = Paint()..color = Colors.orange;
-    canvas.drawRect(Rect.fromCenter(center: Offset(-r * 0.5, 0), width: r * 0.08, height: r * 0.12), xt60Paint);
+    canvas.drawRect(Rect.fromCenter(center: Offset(-r * 0.31, 0), width: r * 0.05, height: r * 0.08), xt60Paint);
 
     final flowLensPaint = Paint()..color = Colors.cyanAccent.shade700;
-    canvas.drawCircle(Offset.zero, r * 0.08, flowLensPaint);
+    canvas.drawCircle(Offset.zero, r * 0.05, flowLensPaint);
 
     final uwbPaint = Paint()..color = const Color(0xFF7C3AED);
-    canvas.drawRect(Rect.fromCenter(center: Offset(0, r * 0.3), width: r * 0.16, height: r * 0.12), uwbPaint);
+    canvas.drawRect(Rect.fromCenter(center: Offset(0, r * 0.19), width: r * 0.10, height: r * 0.08), uwbPaint);
     final rfPaint = Paint()
       ..color = Colors.purpleAccent.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawArc(Rect.fromCircle(center: Offset(0, r * 0.36), radius: r * 0.15), 0, math.pi, false, rfPaint);
+      ..strokeWidth = 0.9;
+    canvas.drawArc(Rect.fromCircle(center: Offset(0, r * 0.22), radius: r * 0.10), 0, math.pi, false, rfPaint);
 
     final lidarPaint = Paint()..color = Colors.black87;
     final lidarLensPaint = Paint()..color = Colors.redAccent;
     final lidarPositions = [
-      Offset(r * 0.45, 0),
-      Offset(0, r * 0.45),
-      Offset(0, -r * 0.45),
-      Offset(-r * 0.45, 0),
-      Offset(r * 0.32, r * 0.32),
+      Offset(r * 0.27, 0),
+      Offset(0, r * 0.27),
+      Offset(0, -r * 0.27),
+      Offset(-r * 0.27, 0),
+      Offset(r * 0.19, r * 0.19),
     ];
 
     for (final lp in lidarPositions) {
-      canvas.drawCircle(lp, r * 0.08, lidarPaint);
-      canvas.drawCircle(lp, r * 0.04, lidarLensPaint);
+      canvas.drawCircle(lp, r * 0.05, lidarPaint);
+      canvas.drawCircle(lp, r * 0.025, lidarLensPaint);
     }
 
     final ledColor = drone.ledColor;
-    final ledRadius = r * 0.10;
-    final dLed = r * 0.32;
+    final ledRadius = r * 0.06;
+    final dLed = r * 0.20;
 
     final polePositions = [
       Offset(dLed, 0),
@@ -1396,28 +1928,28 @@ class ArenaPainter extends CustomPainter {
 
     final propPaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.85)
-      ..strokeWidth = math.max(1.5, r * 0.05);
-    final propR = r * 0.42;
+      ..strokeWidth = math.max(1.5, r * 0.04);
+    final propR = r * 0.24;
     final pAngle = drone.propellerAngle * math.pi / 180.0;
 
     for (final pPos in propPositions) {
-      canvas.drawCircle(pPos, r * 0.14, Paint()..color = const Color(0xFF1E293B));
-      canvas.drawCircle(pPos, r * 0.08, Paint()..color = const Color(0xFF64748B));
+      canvas.drawCircle(pPos, r * 0.09, Paint()..color = const Color(0xFF1E293B));
+      canvas.drawCircle(pPos, r * 0.05, Paint()..color = const Color(0xFF64748B));
 
       canvas.save();
       canvas.translate(pPos.dx, pPos.dy);
       canvas.rotate(pAngle);
       canvas.drawLine(Offset(-propR, 0), Offset(propR, 0), propPaint);
-      canvas.drawLine(Offset(0, -propR * 0.4), Offset(0, propR * 0.4), propPaint..strokeWidth = math.max(1.0, r * 0.03));
+      canvas.drawLine(Offset(0, -propR * 0.35), Offset(0, propR * 0.35), propPaint..strokeWidth = math.max(1.0, r * 0.025));
       canvas.restore();
     }
 
-    if (r >= 38.0) {
-      _drawMicroAnnotation(canvas, Offset(-r * 0.1, -r * 0.18), 'RPi 4', const Color(0xFF15803D));
-      _drawMicroAnnotation(canvas, Offset(r * 0.08, 0.0), 'Pixhawk 6', const Color(0xFF111827));
-      _drawMicroAnnotation(canvas, Offset(r * 0.46, 0.0), 'LiDAR 0°', Colors.redAccent.shade700);
-      _drawMicroAnnotation(canvas, Offset(-r * 0.35, r * 0.28), '4S LiPo', const Color(0xFFCA8A04));
-      _drawMicroAnnotation(canvas, Offset(0, r * 0.42), 'UWB DW3000', const Color(0xFF7C3AED));
+    if (r >= 40.0) {
+      _drawMicroAnnotation(canvas, Offset(-r * 0.06, -r * 0.12), 'RPi 4', const Color(0xFF15803D));
+      _drawMicroAnnotation(canvas, Offset(r * 0.05, 0.0), 'Pixhawk 6', const Color(0xFF111827));
+      _drawMicroAnnotation(canvas, Offset(r * 0.28, 0.0), 'LiDAR 0°', Colors.redAccent.shade700);
+      _drawMicroAnnotation(canvas, Offset(-r * 0.22, r * 0.18), '4S LiPo', const Color(0xFFCA8A04));
+      _drawMicroAnnotation(canvas, Offset(0, r * 0.26), 'UWB DW3000', const Color(0xFF7C3AED));
     }
   }
 
