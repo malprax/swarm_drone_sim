@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../controllers/simulation_controller.dart';
 import '../../controllers/ui_controller.dart';
 import '../../models/drone_model.dart';
+import '../../models/vector2.dart';
 import '../../services/hardware_bridge_service.dart';
 import 'csv_viewer_dialog.dart';
 
@@ -632,15 +633,17 @@ class ControlPanel extends StatelessWidget {
                     color: isConnected ? Colors.greenAccent : (isConnecting ? Colors.amberAccent : Colors.redAccent),
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    isConnected ? 'CONNECTED TO RASPBERRY PI' : (isConnecting ? 'CONNECTING...' : 'DISCONNECTED'),
-                    style: TextStyle(
-                      color: isConnected ? Colors.greenAccent : (isConnecting ? Colors.amberAccent : Colors.redAccent),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
+                  Expanded(
+                    child: Text(
+                      isConnected ? 'CONNECTED (RPI 4)' : (isConnecting ? 'CONNECTING...' : 'DISCONNECTED'),
+                      style: TextStyle(
+                        color: isConnected ? Colors.greenAccent : (isConnecting ? Colors.amberAccent : Colors.redAccent),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const Spacer(),
                   if (isConnected)
                     IconButton(
                       onPressed: () => hw.ping(),
@@ -765,8 +768,39 @@ class ControlPanel extends StatelessWidget {
                 ],
               ),
               const Divider(color: Colors.white12, height: 12),
+              // Motion & UWB Status
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (packet?.isMoving ?? false)
+                          ? Colors.amberAccent.withValues(alpha: 0.2)
+                          : Colors.cyanAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      (packet?.isMoving ?? false) ? '🚀 BERGERAK' : '🛡️ DIAM (STABIL)',
+                      style: TextStyle(
+                        color: (packet?.isMoving ?? false) ? Colors.amberAccent : Colors.cyanAccent,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'UWB: ${(packet?.uwbRawDist ?? 0.0).toStringAsFixed(2)}m (Δ: ${((packet != null && packet.uwbOriginDist > 0) ? (packet.uwbRawDist - packet.uwbOriginDist) : 0.0).toStringAsFixed(2)}m)',
+                    style: const TextStyle(color: Colors.white70, fontSize: 9.5, fontFamily: 'monospace'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 4,
                 children: [
                   Text(
                     'Pos: (${(sim.drones.isNotEmpty ? sim.drones[0].position.x : 0.0).toStringAsFixed(2)}, ${(sim.drones.isNotEmpty ? sim.drones[0].position.y : 0.0).toStringAsFixed(2)}) m',
@@ -835,10 +869,48 @@ class ControlPanel extends StatelessWidget {
         ),
         const SizedBox(height: 10),
 
-        // 5. View Controls
+        // 5. Movement Sensitivity / Scale Multiplier
+        const Text(
+          'SENSITIVITAS GERAK (SCALE):',
+          style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 6),
+        Obx(() {
+          final curScale = hw.movementScale.value;
+          return Row(
+            children: [
+              _buildScaleButton(hw, 1.0, '1.0x Real', curScale == 1.0),
+              const SizedBox(width: 4),
+              _buildScaleButton(hw, 2.0, '2.0x', curScale == 2.0),
+              const SizedBox(width: 4),
+              _buildScaleButton(hw, 3.0, '3.0x Meja', curScale == 3.0),
+            ],
+          );
+        }),
+        const SizedBox(height: 10),
+
+        // 6. View Controls
         const Text(
           'VIEW & CAMERA:',
           style: TextStyle(color: Colors.cyanAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              final dronePos = sim.drones.isNotEmpty ? sim.drones[0].position : Vector2.zero;
+              ui.centerOnWorld(dronePos, const Size(1200, 800), targetZoom: 6.0);
+              ui.followingDroneIndex.value = 0;
+            },
+            icon: const Icon(Icons.zoom_in_map, size: 14, color: Colors.black),
+            label: const Text('Fokus 1:1 Desk View (Zoom Dekat)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 7),
+            ),
+          ),
         ),
         const SizedBox(height: 4),
         Obx(() => CheckboxListTile(
@@ -861,7 +933,7 @@ class ControlPanel extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: () => ui.resetCamera(),
           icon: const Icon(Icons.center_focus_strong, size: 14),
-          label: const Text('Reset Camera View', style: TextStyle(fontSize: 11)),
+          label: const Text('Reset Camera View (Fit All)', style: TextStyle(fontSize: 11)),
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.white70,
             side: const BorderSide(color: Colors.white24),
@@ -920,7 +992,7 @@ class ControlPanel extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 95,
+            width: 78,
             child: Text(
               name,
               style: const TextStyle(color: Colors.white70, fontSize: 9.5),
@@ -938,9 +1010,9 @@ class ControlPanel extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           SizedBox(
-            width: 44,
+            width: 38,
             child: Text(
               '${distM.toStringAsFixed(2)}m',
               style: TextStyle(color: barColor, fontSize: 9.5, fontWeight: FontWeight.bold),
@@ -951,4 +1023,34 @@ class ControlPanel extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildScaleButton(HardwareBridgeService hw, double scale, String label, bool isSelected) {
+    return Expanded(
+      child: InkWell(
+        onTap: () => hw.setMovementScale(scale),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.cyanAccent.withValues(alpha: 0.25) : const Color(0xFF0F172A),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: isSelected ? Colors.cyanAccent : Colors.white24,
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.cyanAccent : Colors.white70,
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
+

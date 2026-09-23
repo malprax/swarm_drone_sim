@@ -625,6 +625,23 @@ class _FloatingZoomHUD extends StatelessWidget {
               ),
               const SizedBox(width: 4),
 
+              // 1:1 Desk View Focus Button
+              IconButton(
+                onPressed: () {
+                  final dronePos = sim.activeDrones.isNotEmpty ? sim.activeDrones[0].position : Vector2.zero;
+                  ui.centerOnWorld(dronePos, viewportSize, targetZoom: 6.0);
+                  ui.followingDroneIndex.value = 0;
+                },
+                icon: const Icon(Icons.zoom_in_map, size: 16, color: Colors.cyanAccent),
+                tooltip: '1:1 Desk View (Zoom Dekat 600% & Ikuti Drone)',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  padding: const EdgeInsets.all(6),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              const SizedBox(width: 4),
+
               // Reset Camera View Button
               IconButton(
                 onPressed: () => ui.resetCamera(),
@@ -1910,27 +1927,35 @@ class ArenaPainter extends CustomPainter {
       Offset(0, dLed),
     ];
 
+    final isStandby = drone.isStandby;
+    final blinkPhase = (DateTime.now().millisecondsSinceEpoch % 800) / 800.0;
+    final isBlinkHigh = blinkPhase < 0.5;
+
+    final double glowAlpha = isStandby ? (isBlinkHigh ? 0.85 : 0.12) : 0.45;
+    final double coreAlpha = isStandby ? (isBlinkHigh ? 1.0 : 0.25) : 1.0;
+    final double glowMultiplier = isStandby ? (isBlinkHigh ? 2.8 : 1.4) : 2.2;
+
     final ledGlowPaint = Paint()
-      ..color = ledColor.withValues(alpha: 0.45)
+      ..color = ledColor.withValues(alpha: glowAlpha)
       ..style = PaintingStyle.fill;
     final ledCorePaint = Paint()
-      ..color = ledColor
+      ..color = ledColor.withValues(alpha: coreAlpha)
       ..style = PaintingStyle.fill;
     final ledWhiteCenter = Paint()
-      ..color = Colors.white
+      ..color = (isStandby && !isBlinkHigh) ? Colors.white24 : Colors.white
       ..style = PaintingStyle.fill;
 
     for (final pole in polePositions) {
-      canvas.drawCircle(pole, ledRadius * 2.2, ledGlowPaint);
+      canvas.drawCircle(pole, ledRadius * glowMultiplier, ledGlowPaint);
       canvas.drawCircle(pole, ledRadius, ledCorePaint);
       canvas.drawCircle(pole, ledRadius * 0.45, ledWhiteCenter);
     }
 
     final propPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
+      ..color = Colors.white.withValues(alpha: isStandby ? 0.4 : 0.85)
       ..strokeWidth = math.max(1.5, r * 0.04);
     final propR = r * 0.24;
-    final pAngle = drone.propellerAngle * math.pi / 180.0;
+    final pAngle = isStandby ? 0.0 : (drone.propellerAngle * math.pi / 180.0);
 
     for (final pPos in propPositions) {
       canvas.drawCircle(pPos, r * 0.09, Paint()..color = const Color(0xFF1E293B));

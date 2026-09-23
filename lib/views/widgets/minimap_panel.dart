@@ -68,17 +68,20 @@ class MinimapPanel extends StatelessWidget {
                 children: [
                   const Icon(Icons.map_outlined, color: Colors.cyanAccent, size: 16),
                   const SizedBox(width: 8),
-                  Obx(() => Text(
-                        sim.activeDroneCount.value == 1
-                            ? 'AI LOCAL ROOM MAPPING (1 DRONE - WIDE SCAN)'
-                            : '${sim.activeDroneCount.value}-DRONE AI LOCAL ROOM MAPPING',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          letterSpacing: 0.8,
-                        ),
-                      )),
+                  Flexible(
+                    child: Obx(() => Text(
+                          sim.activeDroneCount.value == 1
+                              ? 'AI LOCAL ROOM MAPPING (1 DRONE - WIDE SCAN)'
+                              : '${sim.activeDroneCount.value}-DRONE AI LOCAL ROOM MAPPING',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            letterSpacing: 0.8,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        )),
+                  ),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
@@ -153,59 +156,90 @@ class _SingleDroneMinimap extends StatelessWidget {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
             decoration: BoxDecoration(
               color: roleColor.withValues(alpha: 0.12),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
             ),
-            child: Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: roleColor,
-                    boxShadow: [
-                      BoxShadow(color: roleColor.withValues(alpha: 0.8), blurRadius: 3),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  drone.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: isLeader ? Colors.amber.shade900 : Colors.cyan.shade900,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: Text(
-                    isLeader ? 'LEADER' : 'MEMBER',
-                    style: TextStyle(
-                      color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 150;
+                final isUltraCompact = constraints.maxWidth < 95;
+
+                return Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: roleColor,
+                        boxShadow: [
+                          BoxShadow(color: roleColor.withValues(alpha: 0.8), blurRadius: 2),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${drone.exploredPercentage.toStringAsFixed(0)}% Map',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        drone.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (!isCompact) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: isLeader ? Colors.amber.shade900 : Colors.cyan.shade900,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          isLeader ? 'LEADER' : 'MEMBER',
+                          style: TextStyle(
+                            color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ] else if (!isUltraCompact) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: isLeader ? Colors.amber.shade900 : Colors.cyan.shade900,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: Text(
+                          isLeader ? 'L' : 'M',
+                          style: TextStyle(
+                            color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const Spacer(),
+                    Text(
+                      isCompact
+                          ? '${drone.exploredPercentage.toStringAsFixed(0)}%'
+                          : '${drone.exploredPercentage.toStringAsFixed(0)}% Map',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
 

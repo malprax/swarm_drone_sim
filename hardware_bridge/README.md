@@ -1,5 +1,9 @@
 # Raspberry Pi 4 Drone Hardware Bridge (5x LiDAR + SLAM)
 
+> 📘 **DOKUMENTASI SETUP LENGKAP DARI AWAL:**  
+> Untuk panduan langkah demi langkah lengkap konfigurasi MacBook, Raspberry Pi 4, Makerfabs ESP32 UWB, dan Flutter GCS, silakan buka:  
+> 👉 **[DOKUMENTASI_SETUP_LENGKAP.md](DOKUMENTASI_SETUP_LENGKAP.md)**
+
 Jembatan komunikasi nirkabel antara **drone fisik (Raspberry Pi 4)** dan **Flutter Ground Control Station**.
 
 ## 🔌 Spesifikasi Hardware Drone

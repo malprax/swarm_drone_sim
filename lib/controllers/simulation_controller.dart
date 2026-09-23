@@ -295,6 +295,11 @@ class SimulationController extends GetxController {
   }
 
   void _updateRealDroneSLAM(DroneModel drone, List<double> distances) {
+    if (drone.isStandby) {
+      drone.currentSensorRays = [];
+      return;
+    }
+
     final rays = <SensorRay>[];
     const sensorNames = [
       'Front LiDAR (0°)',
@@ -312,11 +317,15 @@ class SimulationController extends GetxController {
     }
 
     for (int i = 0; i < math.min(DroneModel.lidarAngles.length, distances.length); i++) {
+      final rawDist = distances[i];
+      if (rawDist <= 0 || rawDist > drone.senseRange) {
+        // No sensor detected or out of range -> skip ray to avoid false walls
+        continue;
+      }
+      final isHit = rawDist > 0.05 && rawDist < drone.senseRange;
+      final hitDist = rawDist;
       final ang = drone.headingAngle + DroneModel.lidarAngles[i];
       final dir = Vector2(math.cos(ang), math.sin(ang));
-      final rawDist = distances[i];
-      final isHit = rawDist > 0.05 && rawDist < drone.senseRange;
-      final hitDist = isHit ? rawDist : drone.senseRange;
       final rayEnd = drone.position + dir * hitDist;
 
       rays.add(SensorRay(drone.position, rayEnd, isHit, sensorName: sensorNames[i]));

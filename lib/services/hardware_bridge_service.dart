@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:get/get.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/status.dart' as status;
 import '../models/vector2.dart';
 
 /// Connection lifecycle states for real drone hardware bridge
@@ -25,6 +26,10 @@ class RealDronePacket {
   final Vector2 opticalFlowVelocity;
   final List<double> lidarDistances; // 5 LiDAR readings in meters
   final String status;
+  final double uwbRawDist;
+  final double uwbOriginDist;
+  final double uwbScale;
+  final bool isMoving;
 
   double get x => position.x;
   double get y => position.y;
@@ -42,6 +47,10 @@ class RealDronePacket {
     this.opticalFlowVelocity = Vector2.zero,
     required this.lidarDistances,
     this.status = 'active',
+    this.uwbRawDist = 0.0,
+    this.uwbOriginDist = 0.0,
+    this.uwbScale = 1.0,
+    this.isMoving = false,
   });
 
   /// Factory parser for incoming JSON payload from Raspberry Pi
@@ -130,6 +139,19 @@ class RealDronePacket {
       }
     }
 
+    // 6. UWB tracking metrics
+    double uwbRaw = 0.0;
+    double uwbOrigin = 0.0;
+    double uwbScale = 1.0;
+    bool isMoving = false;
+    if (json['uwb'] is Map) {
+      final u = json['uwb'] as Map<String, dynamic>;
+      uwbRaw = (u['raw_distance_m'] as num?)?.toDouble() ?? 0.0;
+      uwbOrigin = (u['origin_distance_m'] as num?)?.toDouble() ?? 0.0;
+      uwbScale = (u['scale'] as num?)?.toDouble() ?? 1.0;
+      isMoving = (u['is_moving'] as bool?) ?? false;
+    }
+
     return RealDronePacket(
       timestamp: (json['timestamp'] as num?)?.toDouble() ?? DateTime.now().millisecondsSinceEpoch / 1000.0,
       droneId: (json['drone_id']?.toString()) ?? 'rpi4_drone',
@@ -141,6 +163,10 @@ class RealDronePacket {
       opticalFlowVelocity: Vector2(vx, vy),
       lidarDistances: lidars,
       status: (json['status'] as String?) ?? 'standby',
+      uwbRawDist: uwbRaw,
+      uwbOriginDist: uwbOrigin,
+      uwbScale: uwbScale,
+      isMoving: isMoving,
     );
   }
 }
@@ -157,13 +183,24 @@ class HardwareBridgeService extends GetxService {
   final pingMs = 0.0.obs;
   final totalPacketsReceived = 0.obs;
   final errorMessage = ''.obs;
+  final movementScale = 1.0.obs;
 
-  WebSocket? _socket;
+  WebSocketChannel? _channel;
+  StreamSubscription? _subscription;
   Timer? _hzTimer;
   int _packetsThisSecond = 0;
   bool _intentionalDisconnect = false;
 
   bool get isConnected => connectionState.value == HardwareConnectionState.connected;
+
+  void setMovementScale(double scale) {
+    movementScale.value = scale;
+    sendJson({
+      'command': 'set_scale',
+      'scale': scale,
+      'timestamp': DateTime.now().millisecondsSinceEpoch / 1000.0,
+    });
+  }
 
 
   @override
@@ -199,7 +236,13 @@ class HardwareBridgeService extends GetxService {
 
     try {
       final startConnectTime = DateTime.now().millisecondsSinceEpoch;
-      _socket = await WebSocket.connect(targetUri).timeout(const Duration(seconds: 5));
+      final uri = Uri.parse(targetUri);
+      final channel = WebSocketChannel.connect(uri);
+
+      // Wait for connection to be established
+      await channel.ready.timeout(const Duration(seconds: 5));
+      _channel = channel;
+
       final connectElapsed = (DateTime.now().millisecondsSinceEpoch - startConnectTime).toDouble();
       pingMs.value = connectElapsed;
 
@@ -207,7 +250,7 @@ class HardwareBridgeService extends GetxService {
       _startRateMeter();
 
       // Listen for incoming telemetry packets
-      _socket!.listen(
+      _subscription = _channel!.stream.listen(
         _onDataReceived,
         onError: _onError,
         onDone: _onDone,
@@ -230,9 +273,11 @@ class HardwareBridgeService extends GetxService {
     _hzTimer?.cancel();
     _hzTimer = null;
     try {
-      await _socket?.close(WebSocketStatus.normalClosure, 'Client disconnected');
+      await _subscription?.cancel();
+      _subscription = null;
+      await _channel?.sink.close(status.normalClosure, 'Client disconnected');
     } catch (_) {}
-    _socket = null;
+    _channel = null;
     connectionState.value = HardwareConnectionState.disconnected;
     packetRateHz.value = 0.0;
   }
@@ -240,7 +285,14 @@ class HardwareBridgeService extends GetxService {
   /// Handle incoming raw string data from Raspberry Pi
   void _onDataReceived(dynamic data) {
     try {
-      final String text = data is String ? data : utf8.decode(data as List<int>);
+      String text;
+      if (data is String) {
+        text = data;
+      } else if (data is List<int>) {
+        text = utf8.decode(data);
+      } else {
+        text = data.toString();
+      }
       final dynamic decoded = jsonDecode(text);
 
       if (decoded is Map<String, dynamic>) {
@@ -277,9 +329,9 @@ class HardwareBridgeService extends GetxService {
 
   /// Send JSON control command to Raspberry Pi
   bool sendJson(Map<String, dynamic> data) {
-    if (_socket != null && isConnected) {
+    if (_channel != null && isConnected) {
       try {
-        _socket!.add(jsonEncode(data));
+        _channel!.sink.add(jsonEncode(data));
         return true;
       } catch (_) {}
     }

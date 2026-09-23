@@ -132,7 +132,7 @@ void main() {
       expect(ArenaMap.wallSurfaces.length, greaterThanOrEqualTo(18));
       for (final s in ArenaMap.wallSurfaces) {
         expect(s.length, greaterThan(0));
-        expect(s.normal.length, closeTo(1.0, 0.01));
+        expect(s.normal.magnitude, closeTo(1.0, 0.01));
       }
     });
   });

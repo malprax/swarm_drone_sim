@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/batch_run_result.dart';
 
@@ -13,7 +14,7 @@ class CsvHelper {
 
     Directory dir;
     try {
-      if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      if (!kIsWeb && (Platform.isMacOS || Platform.isWindows || Platform.isLinux)) {
         dir = await getApplicationDocumentsDirectory();
       } else {
         dir = await getApplicationDocumentsDirectory();
@@ -43,6 +44,7 @@ class CsvHelper {
 
   /// Open CSV file in default system application (Numbers/Excel on Mac)
   static Future<void> openFile(String path) async {
+    if (kIsWeb) return;
     if (!File(path).existsSync()) return;
 
     if (Platform.isMacOS) {
@@ -56,6 +58,7 @@ class CsvHelper {
 
   /// Open directory containing the CSV file in Finder / Explorer
   static Future<void> openFolder(String filePath) async {
+    if (kIsWeb) return;
     final dirPath = File(filePath).parent.path;
     if (!Directory(dirPath).existsSync()) return;
 
