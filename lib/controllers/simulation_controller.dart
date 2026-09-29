@@ -8,16 +8,18 @@ import '../models/drone_model.dart';
 import '../models/grid_map_2d.dart';
 import '../models/vector2.dart';
 import '../services/hardware_bridge_service.dart';
+import '../services/uwb_engine_service.dart';
 import '../utils/csv_helper.dart';
 
 enum SimState { standby, running, targetFound, complete }
 
-enum AppDataSource { simulation, realDrone }
+enum AppDataSource { simulation, realDrone, uwbEngine }
 
 class SimulationController extends GetxController {
-  // Data Source Toggle: Virtual Math Simulation vs Physical Hardware Link
+  // Data Source Toggle: Virtual Math Simulation vs Physical Hardware Link vs Native UWB Engine
   final appDataSource = AppDataSource.simulation.obs;
   bool get isRealDroneMode => appDataSource.value == AppDataSource.realDrone;
+  bool get isUwbEngineMode => appDataSource.value == AppDataSource.uwbEngine;
 
   // Swarm & Scene State
   final drones = <DroneModel>[].obs;
@@ -241,10 +243,15 @@ class SimulationController extends GetxController {
   // REAL DRONE HARDWARE INTEGRATION (Raspberry Pi 4 + 5 LiDAR + SLAM)
   // ===========================================================================
 
-  /// Switch between Virtual Simulation and Real Drone (RPi 4) Hardware Link
+  /// Switch between Virtual Simulation, Real Drone (RPi 4) Hardware Link, and Native UWB Engine
   void setDataSource(AppDataSource source) {
     if (appDataSource.value == source) return;
+    final prevSource = appDataSource.value;
     appDataSource.value = source;
+
+    if (prevSource == AppDataSource.uwbEngine) {
+      Get.find<UwbEngineService>().stopEngine();
+    }
 
     if (source == AppDataSource.realDrone) {
       if (isRunning) stopRun();
@@ -262,6 +269,13 @@ class SimulationController extends GetxController {
       final hw = Get.find<HardwareBridgeService>();
       if (!hw.isConnected && hw.connectionState.value != HardwareConnectionState.connecting) {
         hw.connect();
+      }
+    } else if (source == AppDataSource.uwbEngine) {
+      if (isRunning) stopRun();
+      simState.value = SimState.running;
+      final uwb = Get.find<UwbEngineService>();
+      if (!uwb.isRunning.value) {
+        uwb.startEngine();
       }
     } else {
       setActiveDroneCount(3);

@@ -3,12 +3,14 @@ import 'package:get/get.dart';
 import '../controllers/simulation_controller.dart';
 import '../controllers/ui_controller.dart';
 import '../services/hardware_bridge_service.dart';
+import '../services/uwb_engine_service.dart';
 import 'arena_canvas.dart';
 import 'widgets/control_panel.dart';
 import 'widgets/drone_telemetry_card.dart';
 import 'widgets/layout_preset_selector.dart';
 import 'widgets/minimap_panel.dart';
 import 'widgets/resizable_divider.dart';
+import 'widgets/uwb_2d_painter.dart';
 
 class MainScreen extends StatelessWidget {
   const MainScreen({super.key});
@@ -40,15 +42,20 @@ class MainScreen extends StatelessWidget {
             ),
             const SizedBox(width: 10),
 
-            // MODE TOGGLE BUTTON: [ 🎮 Simulasi | 🛸 Real Drone (RPi 4) ]
+            // MODE TOGGLE BUTTON: [ 🎮 Simulasi | 🛸 Real Drone (RPi 4) | 🛰️ UWB DW3000 ]
             Obx(() {
               final isReal = sim.isRealDroneMode;
+              final isUwb = sim.isUwbEngineMode;
+              final isSim = !isReal && !isUwb;
+
               return Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F172A),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isReal ? Colors.greenAccent : Colors.cyanAccent.withValues(alpha: 0.5),
+                    color: isUwb 
+                        ? const Color(0xFF38BDF8)
+                        : (isReal ? Colors.greenAccent : Colors.cyanAccent.withValues(alpha: 0.5)),
                     width: 1.2,
                   ),
                 ),
@@ -62,19 +69,19 @@ class MainScreen extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                         decoration: BoxDecoration(
-                          color: !isReal ? Colors.cyan.shade800 : Colors.transparent,
+                          color: isSim ? Colors.cyan.shade800 : Colors.transparent,
                           borderRadius: const BorderRadius.horizontal(left: Radius.circular(19)),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.sports_esports_outlined, size: 14, color: !isReal ? Colors.white : Colors.white60),
+                            Icon(Icons.sports_esports_outlined, size: 14, color: isSim ? Colors.white : Colors.white60),
                             const SizedBox(width: 4),
                             Text(
                               'Simulasi',
                               style: TextStyle(
-                                color: !isReal ? Colors.white : Colors.white60,
+                                color: isSim ? Colors.white : Colors.white60,
                                 fontSize: 11,
-                                fontWeight: !isReal ? FontWeight.bold : FontWeight.normal,
+                                fontWeight: isSim ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
                           ],
@@ -84,13 +91,11 @@ class MainScreen extends StatelessWidget {
 
                     // Option 2: Real Drone (RPi 4)
                     InkWell(
-                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(19)),
                       onTap: () => sim.setDataSource(AppDataSource.realDrone),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                         decoration: BoxDecoration(
                           color: isReal ? Colors.green.shade800 : Colors.transparent,
-                          borderRadius: const BorderRadius.horizontal(right: Radius.circular(19)),
                         ),
                         child: Row(
                           children: [
@@ -102,6 +107,33 @@ class MainScreen extends StatelessWidget {
                                 color: isReal ? Colors.white : Colors.white60,
                                 fontSize: 11,
                                 fontWeight: isReal ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Option 3: UWB Engine (C++20)
+                    InkWell(
+                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(19)),
+                      onTap: () => sim.setDataSource(AppDataSource.uwbEngine),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isUwb ? const Color(0xFF0284C7) : Colors.transparent,
+                          borderRadius: const BorderRadius.horizontal(right: Radius.circular(19)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.radar_rounded, size: 14, color: isUwb ? Colors.cyanAccent : Colors.white60),
+                            const SizedBox(width: 4),
+                            Text(
+                              'UWB DW3000 (C++20)',
+                              style: TextStyle(
+                                color: isUwb ? Colors.white : Colors.white60,
+                                fontSize: 11,
+                                fontWeight: isUwb ? FontWeight.bold : FontWeight.normal,
                               ),
                             ),
                           ],
@@ -304,6 +336,21 @@ class MainScreen extends StatelessWidget {
     SimulationController sim,
     double totalHeight,
   ) {
+    if (sim.isUwbEngineMode) {
+      final uwb = Get.find<UwbEngineService>();
+      return Obx(() {
+        return Padding(
+          padding: const EdgeInsets.all(8),
+          child: Uwb2DCanvasWidget(
+            droneState: uwb.latestState.value,
+            anchors: uwb.anchors,
+            arenaWidthMeters: 6.0,
+            arenaHeightMeters: 6.0,
+          ),
+        );
+      });
+    }
+
     switch (splitLayout) {
       case ArenaSplitLayout.arenaFocus:
         return Stack(
