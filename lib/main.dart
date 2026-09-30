@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'controllers/simulation_controller.dart';
 import 'controllers/ui_controller.dart';
-import 'services/uwb_engine_service.dart';
 import 'views/main_screen.dart';
 
 void main() {
@@ -11,7 +10,6 @@ void main() {
   // Register GetX Controllers
   Get.put(SimulationController());
   Get.put(UIController());
-  Get.put(UwbEngineService());
 
   runApp(const SwarmDroneApp());
 }
