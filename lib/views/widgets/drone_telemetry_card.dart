@@ -60,8 +60,10 @@ class DroneTelemetryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              Wrap(
+                spacing: 4,
+                runSpacing: 2,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -70,7 +72,7 @@ class DroneTelemetryCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      isLeader ? 'LEADER (YELLOW)' : 'MEMBER (BLUE)',
+                      isLeader ? 'LEADER' : 'MEMBER',
                       style: TextStyle(
                         color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
                         fontWeight: FontWeight.bold,
@@ -78,7 +80,6 @@ class DroneTelemetryCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
