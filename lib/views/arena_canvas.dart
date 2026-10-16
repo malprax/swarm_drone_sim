@@ -365,9 +365,12 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                       zoomLevel: ui.zoom.value,
                       sensorsVisible: ui.showSensors.value,
                       gridVisible: ui.showGrid.value,
+                      arenaGridVisible: ui.showArenaGrid.value,
                       pathsVisible: ui.showPaths.value,
                       missionPathVisible: ui.showMissionPath.value,
                       labelsVisible: ui.showDroneLabels.value,
+                      homeBaseVisible: ui.showHomeBase.value,
+                      targetCircleVisible: ui.showTargetCircle.value,
                       targetPos: targetPos,
                       gizmoMode: currentGizmoMode,
                       activeGizmoAxis: currentActiveAxis,
@@ -725,9 +728,12 @@ class ArenaPainter extends CustomPainter {
   final double zoomLevel;
   final bool sensorsVisible;
   final bool gridVisible;
+  final bool arenaGridVisible;
   final bool pathsVisible;
   final bool missionPathVisible;
   final bool labelsVisible;
+  final bool homeBaseVisible;
+  final bool targetCircleVisible;
   final Vector2 targetPos;
   final GizmoMode gizmoMode;
   final GizmoAxis activeGizmoAxis;
@@ -743,9 +749,12 @@ class ArenaPainter extends CustomPainter {
     required this.zoomLevel,
     required this.sensorsVisible,
     required this.gridVisible,
+    required this.arenaGridVisible,
     required this.pathsVisible,
     required this.missionPathVisible,
     required this.labelsVisible,
+    required this.homeBaseVisible,
+    required this.targetCircleVisible,
     required this.targetPos,
     required this.gizmoMode,
     required this.activeGizmoAxis,
@@ -784,11 +793,6 @@ class ArenaPainter extends CustomPainter {
       _drawWalls(canvas, worldToScreen, toScreenDist);
     }
 
-    // 3. Draw Target Spawn Area bounds (Simulation mode only)
-    if (!sim.isRealDroneMode && ui.showTargetArea.value) {
-      _drawTargetArea(canvas, worldToScreen);
-    }
-
     // 4. Draw Occupancy Grid Map (LiDAR discovered free space in cyan)
     if (gridVisible) {
       _drawOccupancyGrid(canvas, worldToScreen, baseScale);
@@ -800,10 +804,12 @@ class ArenaPainter extends CustomPainter {
     }
 
     // 5. Draw Dynamic HomeBases or Real Drone Start Point (0,0)
-    if (sim.isRealDroneMode) {
-      _drawRealDroneOrigin(canvas, worldToScreen, toSDist: toScreenDist);
-    } else {
-      _drawDynamicHomeBases(canvas, worldToScreen, toScreenDist);
+    if (homeBaseVisible) {
+      if (sim.isRealDroneMode) {
+        _drawRealDroneOrigin(canvas, worldToScreen, toSDist: toScreenDist);
+      } else {
+        _drawDynamicHomeBases(canvas, worldToScreen, toScreenDist);
+      }
     }
 
     // 6. Draw Target (Simulation mode only)
@@ -1005,6 +1011,8 @@ class ArenaPainter extends CustomPainter {
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..color = const Color(0xFF0F172A),
     );
+
+    if (!arenaGridVisible) return;
 
     final fineGridPaint = Paint()
       ..color = const Color(0xFF1E293B).withValues(alpha: 0.6)
@@ -1293,19 +1301,6 @@ class ArenaPainter extends CustomPainter {
     }
   }
 
-  void _drawTargetArea(Canvas canvas, Offset Function(Vector2) w2s) {
-    final bounds = ArenaMap.targetSpawnBounds;
-    final pMin = w2s(bounds.min);
-    final pMax = w2s(bounds.max);
-
-    final rect = Rect.fromPoints(pMin, pMax);
-    final borderPaint = Paint()
-      ..color = Colors.amberAccent.withValues(alpha: 0.25)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    canvas.drawRect(rect, borderPaint);
-  }
 
   void _drawWalls(
     Canvas canvas,
@@ -1644,16 +1639,18 @@ class ArenaPainter extends CustomPainter {
     final tPos = w2s(targetPosition);
     final r = math.max(8.0, toSDist(0.35));
 
-    final waveRadius = (r * 1.5) + (elapsedTime % 1.5) * (r * 2.5);
-    final waveAlpha = (1.0 - (elapsedTime % 1.5) / 1.5).clamp(0.0, 1.0) * 0.4;
-    canvas.drawCircle(
-      tPos,
-      waveRadius,
-      Paint()
-        ..color = Colors.amberAccent.withValues(alpha: waveAlpha)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
+    if (targetCircleVisible) {
+      final waveRadius = (r * 1.5) + (elapsedTime % 1.5) * (r * 2.5);
+      final waveAlpha = (1.0 - (elapsedTime % 1.5) / 1.5).clamp(0.0, 1.0) * 0.4;
+      canvas.drawCircle(
+        tPos,
+        waveRadius,
+        Paint()
+          ..color = Colors.amberAccent.withValues(alpha: waveAlpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+    }
 
     final targetPath = Path()
       ..moveTo(tPos.dx, tPos.dy - r)

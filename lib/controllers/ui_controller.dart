@@ -27,10 +27,13 @@ class UIController extends GetxController {
   // Canvas visualization toggles
   final showSensors = true.obs;
   final showGrid = true.obs;
+  final showArenaGrid = true.obs; // Toggle arena background grid lines (garis kotak-kotak)
   final showPaths = true.obs;
   final showMissionPath = true.obs; // Toggle historical search breadcrumbs
   final showDroneLabels = true.obs;
-  final showTargetArea = true.obs;
+  final showHomeBase = true.obs; // Toggle home base / "H" pad display
+  final showTargetCircle = true.obs; // Toggle yellow beacon circle / wave on target object
+  final showTargetArea = false.obs;
   final showMinimaps = true.obs; // Toggle 3 AI Minimap boxes
 
   // Wall detection line customization (0 pt, 1 pt, 2 pt, 3 pt) & style
