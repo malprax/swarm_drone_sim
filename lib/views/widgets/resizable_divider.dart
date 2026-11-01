@@ -34,17 +34,18 @@ class _ResizableDividerState extends State<ResizableDivider> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isHorizontal = widget.axis == Axis.horizontal;
     final cursor = isHorizontal ? SystemMouseCursors.resizeRow : SystemMouseCursors.resizeColumn;
 
-    final baseColor = widget.defaultColor ?? const Color(0xFF334155);
-    final highlightColor = widget.activeColor ?? Colors.cyanAccent;
+    final baseColor = widget.defaultColor ?? (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1));
+    final highlightColor = widget.activeColor ?? (isDark ? Colors.cyanAccent : const Color(0xFF0284C7));
     final isActive = _isHovered || _isDragging;
 
     Widget dividerContent = Container(
       color: Colors.transparent,
       child: Center(
-        child: isHorizontal ? _buildHorizontalDivider(isActive, baseColor, highlightColor) : _buildVerticalDivider(isActive, baseColor, highlightColor),
+        child: isHorizontal ? _buildHorizontalDivider(isActive, baseColor, highlightColor, isDark) : _buildVerticalDivider(isActive, baseColor, highlightColor, isDark),
       ),
     );
 
@@ -86,7 +87,7 @@ class _ResizableDividerState extends State<ResizableDivider> {
     );
   }
 
-  Widget _buildHorizontalDivider(bool isActive, Color baseColor, Color highlightColor) {
+  Widget _buildHorizontalDivider(bool isActive, Color baseColor, Color highlightColor, bool isDark) {
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -103,7 +104,7 @@ class _ResizableDividerState extends State<ResizableDivider> {
           width: isActive ? 44.0 : 32.0,
           height: 5.0,
           decoration: BoxDecoration(
-            color: isActive ? highlightColor : const Color(0xFF475569),
+            color: isActive ? highlightColor : (isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8)),
             borderRadius: BorderRadius.circular(3.0),
             boxShadow: isActive
                 ? [
@@ -125,7 +126,7 @@ class _ResizableDividerState extends State<ResizableDivider> {
                 margin: const EdgeInsets.symmetric(horizontal: 2.0),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isActive ? Colors.black87 : Colors.white54,
+                  color: isActive ? Colors.black87 : (isDark ? Colors.white54 : const Color(0xFF475569)),
                 ),
               ),
             ),
@@ -142,14 +143,15 @@ class _ResizableDividerState extends State<ResizableDivider> {
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: isActive ? highlightColor : baseColor, width: 0.8),
+                  boxShadow: isDark ? null : const [BoxShadow(color: Colors.black12, blurRadius: 2)],
                 ),
                 child: Icon(
                   widget.isCollapsed ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                   size: 14,
-                  color: isActive ? highlightColor : Colors.white70,
+                  color: isActive ? highlightColor : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 ),
               ),
             ),
@@ -158,7 +160,7 @@ class _ResizableDividerState extends State<ResizableDivider> {
     );
   }
 
-  Widget _buildVerticalDivider(bool isActive, Color baseColor, Color highlightColor) {
+  Widget _buildVerticalDivider(bool isActive, Color baseColor, Color highlightColor, bool isDark) {
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -175,7 +177,7 @@ class _ResizableDividerState extends State<ResizableDivider> {
           height: isActive ? 44.0 : 32.0,
           width: 5.0,
           decoration: BoxDecoration(
-            color: isActive ? highlightColor : const Color(0xFF475569),
+            color: isActive ? highlightColor : (isDark ? const Color(0xFF475569) : const Color(0xFF94A3B8)),
             borderRadius: BorderRadius.circular(3.0),
             boxShadow: isActive
                 ? [
@@ -197,7 +199,7 @@ class _ResizableDividerState extends State<ResizableDivider> {
                 margin: const EdgeInsets.symmetric(vertical: 2.0),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isActive ? Colors.black87 : Colors.white54,
+                  color: isActive ? Colors.black87 : (isDark ? Colors.white54 : const Color(0xFF475569)),
                 ),
               ),
             ),
@@ -214,14 +216,15 @@ class _ResizableDividerState extends State<ResizableDivider> {
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: isActive ? highlightColor : baseColor, width: 0.8),
+                  boxShadow: isDark ? null : const [BoxShadow(color: Colors.black12, blurRadius: 2)],
                 ),
                 child: Icon(
                   widget.isCollapsed ? Icons.chevron_right : Icons.chevron_left,
                   size: 14,
-                  color: isActive ? highlightColor : Colors.white70,
+                  color: isActive ? highlightColor : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 ),
               ),
             ),

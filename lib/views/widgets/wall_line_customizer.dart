@@ -11,73 +11,89 @@ class WallLineCustomizerWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final ui = Get.find<UIController>();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xEE0B1120),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF334155), width: 1.0),
-        boxShadow: const [
-          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Row 1: Line Thickness selector (0 pt, 1 pt, 2 pt, 3 pt)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Tebal: ',
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              _buildThicknessPill(ui, 0, '0 pt', '0 Point: Sembunyikan garis merah dinding'),
-              const SizedBox(width: 3),
-              _buildThicknessPill(ui, 1, '1 pt', '1 Point: Garis merah tipis'),
-              const SizedBox(width: 3),
-              _buildThicknessPill(ui, 2, '2 pt', '2 Point: Garis merah sedang'),
-              const SizedBox(width: 3),
-              _buildThicknessPill(ui, 3, '3 pt', '3 Point: Garis merah tebal'),
-            ],
-          ),
-          const SizedBox(height: 5),
+    return Obx(() {
+      final isDark = ui.isDarkMode;
 
-          // Row 2: Line Pattern / Style selector (Sambung, Putus, Tajam, Tumpul)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Pola: ',
-                style: TextStyle(
-                  color: Colors.white60,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xEE0B1120) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1), width: 1.0),
+          boxShadow: isDark
+              ? const [
+                  BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                ]
+              : const [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Row 1: Line Thickness selector (0 pt, 1 pt, 2 pt, 3 pt)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Tebal: ',
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              _buildStylePill(ui, WallLineStyle.solid, '—', 'Sambung', 'Garis Lurus Sambung (Kontinu)'),
-              const SizedBox(width: 3),
-              _buildStylePill(ui, WallLineStyle.dashed, '- -', 'Putus', 'Garis Putus-putus (Dashed)'),
-              const SizedBox(width: 3),
-              _buildStylePill(ui, WallLineStyle.zigzag, '⋀⋁', 'Tajam', 'Bergelombang Tajam (Zigzag Wave)'),
-              const SizedBox(width: 3),
-              _buildStylePill(ui, WallLineStyle.wavy, '〜', 'Tumpul', 'Bergelombang Tumpul (Sinusoidal Wave)'),
-            ],
-          ),
-        ],
-      ),
-    );
+                _buildThicknessPill(ui, 0, '0 pt', '0 Point: Sembunyikan garis merah dinding', isDark),
+                const SizedBox(width: 3),
+                _buildThicknessPill(ui, 1, '1 pt', '1 Point: Garis merah tipis', isDark),
+                const SizedBox(width: 3),
+                _buildThicknessPill(ui, 2, '2 pt', '2 Point: Garis merah sedang', isDark),
+                const SizedBox(width: 3),
+                _buildThicknessPill(ui, 3, '3 pt', '3 Point: Garis merah tebal', isDark),
+              ],
+            ),
+            const SizedBox(height: 5),
+
+            // Row 2: Line Pattern / Style selector (Sambung, Putus, Tajam, Tumpul)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Pola: ',
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : const Color(0xFF64748B),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                _buildStylePill(ui, WallLineStyle.solid, '—', 'Sambung', 'Garis Lurus Sambung (Kontinu)', isDark),
+                const SizedBox(width: 3),
+                _buildStylePill(ui, WallLineStyle.dashed, '- -', 'Putus', 'Garis Putus-putus (Dashed)', isDark),
+                const SizedBox(width: 3),
+                _buildStylePill(ui, WallLineStyle.zigzag, '⋀⋁', 'Tajam', 'Bergelombang Tajam (Zigzag Wave)', isDark),
+                const SizedBox(width: 3),
+                _buildStylePill(ui, WallLineStyle.wavy, '〜', 'Tumpul', 'Bergelombang Tumpul (Sinusoidal Wave)', isDark),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 
-  Widget _buildThicknessPill(UIController ui, int pt, String label, String tooltip) {
+  Widget _buildThicknessPill(
+    UIController ui,
+    int pt,
+    String label,
+    String tooltip,
+    bool isDark,
+  ) {
     return Obx(() {
       final isSelected = ui.wallLineThickness.value == pt;
-      final activeColor = pt == 0 ? Colors.amberAccent : Colors.cyanAccent;
+      final activeColor = pt == 0
+          ? (isDark ? Colors.amberAccent : Colors.amber.shade800)
+          : (isDark ? Colors.cyanAccent : const Color(0xFF0284C7));
 
       return Tooltip(
         message: tooltip,
@@ -89,17 +105,19 @@ class WallLineCustomizerWidget extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
             decoration: BoxDecoration(
-              color: isSelected ? activeColor.withValues(alpha: 0.25) : const Color(0xFF0F172A),
+              color: isSelected
+                  ? activeColor.withValues(alpha: isDark ? 0.25 : 0.15)
+                  : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: isSelected ? activeColor : const Color(0xFF334155),
+                color: isSelected ? activeColor : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                 width: 1.0,
               ),
             ),
             child: Text(
               label,
               style: TextStyle(
-                color: isSelected ? activeColor : Colors.white70,
+                color: isSelected ? activeColor : (isDark ? Colors.white70 : const Color(0xFF475569)),
                 fontSize: 9.5,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
@@ -116,10 +134,11 @@ class WallLineCustomizerWidget extends StatelessWidget {
     String iconSymbol,
     String label,
     String tooltip,
+    bool isDark,
   ) {
     return Obx(() {
       final isSelected = ui.wallLineStyle.value == style;
-      const activeColor = Colors.cyanAccent;
+      final activeColor = isDark ? Colors.cyanAccent : const Color(0xFF0284C7);
 
       return Tooltip(
         message: tooltip,
@@ -131,10 +150,12 @@ class WallLineCustomizerWidget extends StatelessWidget {
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2.5),
             decoration: BoxDecoration(
-              color: isSelected ? activeColor.withValues(alpha: 0.25) : const Color(0xFF0F172A),
+              color: isSelected
+                  ? activeColor.withValues(alpha: isDark ? 0.25 : 0.15)
+                  : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
               borderRadius: BorderRadius.circular(4),
               border: Border.all(
-                color: isSelected ? activeColor : const Color(0xFF334155),
+                color: isSelected ? activeColor : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
                 width: 1.0,
               ),
             ),
@@ -144,7 +165,7 @@ class WallLineCustomizerWidget extends StatelessWidget {
                 Text(
                   iconSymbol,
                   style: TextStyle(
-                    color: isSelected ? activeColor : Colors.white60,
+                    color: isSelected ? activeColor : (isDark ? Colors.white60 : const Color(0xFF64748B)),
                     fontSize: 9.5,
                     fontWeight: FontWeight.bold,
                   ),
@@ -153,7 +174,7 @@ class WallLineCustomizerWidget extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected ? activeColor : Colors.white70,
+                    color: isSelected ? activeColor : (isDark ? Colors.white70 : const Color(0xFF475569)),
                     fontSize: 9.0,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),

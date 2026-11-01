@@ -6,7 +6,9 @@ import '../../controllers/ui_controller.dart';
 import '../../models/drone_model.dart';
 import '../../models/vector2.dart';
 import '../../services/hardware_bridge_service.dart';
+import '../../utils/app_theme.dart';
 import 'csv_viewer_dialog.dart';
+import 'theme_mode_toggle.dart';
 
 class ControlPanel extends StatelessWidget {
   const ControlPanel({super.key});
@@ -17,18 +19,23 @@ class ControlPanel extends StatelessWidget {
     final ui = Get.find<UIController>();
     final hw = Get.find<HardwareBridgeService>();
 
-    return Container(
-      color: const Color(0xFF161E2E),
-      child: Obx(() {
-        if (sim.isRealDroneMode) {
-          return _buildRealDronePanel(context, sim, ui, hw);
-        }
-        return _buildSimulationPanel(context, sim, ui);
-      }),
-    );
+    return Obx(() {
+      final isDark = ui.isDarkMode;
+      return Container(
+        color: AppColors.panelBackground(isDark),
+        child: sim.isRealDroneMode
+            ? _buildRealDronePanel(context, sim, ui, hw, isDark)
+            : _buildSimulationPanel(context, sim, ui, isDark),
+      );
+    });
   }
 
-  Widget _buildSimulationPanel(BuildContext context, SimulationController sim, UIController ui) {
+  Widget _buildSimulationPanel(
+    BuildContext context,
+    SimulationController sim,
+    UIController ui,
+    bool isDark,
+  ) {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       children: [
@@ -478,14 +485,20 @@ class ControlPanel extends StatelessWidget {
           }),
 
           const SizedBox(height: 12),
-          const Divider(color: Colors.white24),
+          Divider(color: AppColors.border(isDark)),
+          const SizedBox(height: 8),
+
+          // Theme Mode Selector [ Dark | Light | Sistem ]
+          const ThemeModeToggle(isCompact: false),
+          const SizedBox(height: 12),
+          Divider(color: AppColors.border(isDark)),
           const SizedBox(height: 8),
 
           // Display Overlays & Features
-          const Text(
+          Text(
             'VIEW TOGGLES & SENSORS',
             style: TextStyle(
-              color: Colors.white70,
+              color: isDark ? Colors.white70 : const Color(0xFF475569),
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.8,
@@ -494,17 +507,17 @@ class ControlPanel extends StatelessWidget {
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Home Base (Pad "H")', style: TextStyle(color: Colors.tealAccent, fontSize: 12)),
-                subtitle: const Text('Tampilkan atau sembunyikan pad landasan & tulisan "H"', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                title: Text('Home Base (Pad "H")', style: TextStyle(color: isDark ? Colors.tealAccent : const Color(0xFF0D9488), fontSize: 12, fontWeight: FontWeight.w600)),
+                subtitle: Text('Tampilkan atau sembunyikan pad landasan & tulisan "H"', style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 10)),
                 value: ui.showHomeBase.value,
                 onChanged: (v) => ui.showHomeBase.value = v ?? true,
-                activeColor: Colors.tealAccent,
+                activeColor: isDark ? Colors.tealAccent : const Color(0xFF0D9488),
               )),
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Lingkaran Kuning Target', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
-                subtitle: const Text('Tampilkan atau sembunyikan lingkaran sinyal target', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                title: Text('Lingkaran Kuning Target', style: TextStyle(color: isDark ? Colors.amberAccent : Colors.amber.shade800, fontSize: 12, fontWeight: FontWeight.w600)),
+                subtitle: Text('Tampilkan atau sembunyikan lingkaran sinyal target', style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 10)),
                 value: ui.showTargetCircle.value,
                 onChanged: (v) => ui.showTargetCircle.value = v ?? true,
                 activeColor: Colors.amberAccent,
@@ -512,41 +525,41 @@ class ControlPanel extends StatelessWidget {
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Garis Grid Arena', style: TextStyle(color: Colors.white, fontSize: 12)),
-                subtitle: const Text('Garis kotak-kotak koordinat latar arena', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                title: Text('Garis Grid Arena', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 12)),
+                subtitle: Text('Garis kotak-kotak koordinat latar arena', style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 10)),
                 value: ui.showArenaGrid.value,
                 onChanged: (v) => ui.showArenaGrid.value = v ?? true,
-                activeColor: Colors.cyanAccent,
+                activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
               )),
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('LiDAR Rays (5x) & UWB', style: TextStyle(color: Colors.white, fontSize: 12)),
+                title: Text('LiDAR Rays (5x) & UWB', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 12)),
                 value: ui.showSensors.value,
                 onChanged: (v) => ui.showSensors.value = v ?? true,
-                activeColor: Colors.cyanAccent,
+                activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
               )),
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Global Occupancy Grid', style: TextStyle(color: Colors.white, fontSize: 12)),
+                title: Text('Global Occupancy Grid', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 12)),
                 value: ui.showGrid.value,
                 onChanged: (v) => ui.showGrid.value = v ?? true,
-                activeColor: Colors.cyanAccent,
+                activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
               )),
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('A* Path Trajectories', style: TextStyle(color: Colors.white, fontSize: 12)),
+                title: Text('A* Path Trajectories', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 12)),
                 value: ui.showPaths.value,
                 onChanged: (v) => ui.showPaths.value = v ?? true,
-                activeColor: Colors.cyanAccent,
+                activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
               )),
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Mission History Path', style: TextStyle(color: Colors.amberAccent, fontSize: 12)),
-                subtitle: const Text('Search track lines from start', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                title: Text('Mission History Path', style: TextStyle(color: isDark ? Colors.amberAccent : Colors.amber.shade800, fontSize: 12)),
+                subtitle: Text('Search track lines from start', style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 10)),
                 value: ui.showMissionPath.value,
                 onChanged: (v) => ui.showMissionPath.value = v ?? true,
                 activeColor: Colors.amberAccent,
@@ -554,8 +567,8 @@ class ControlPanel extends StatelessWidget {
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('3 AI Drone Minimaps', style: TextStyle(color: Colors.lightGreenAccent, fontSize: 12)),
-                subtitle: const Text('Individual SLAM room mapping', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                title: Text('3 AI Drone Minimaps', style: TextStyle(color: isDark ? Colors.lightGreenAccent : Colors.green.shade700, fontSize: 12)),
+                subtitle: Text('Individual SLAM room mapping', style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 10)),
                 value: ui.showMinimaps.value,
                 onChanged: (v) => ui.showMinimaps.value = v ?? true,
                 activeColor: Colors.lightGreenAccent,
@@ -563,10 +576,10 @@ class ControlPanel extends StatelessWidget {
           Obx(() => CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
-                title: const Text('Hardware Specs & Labels', style: TextStyle(color: Colors.white, fontSize: 12)),
+                title: Text('Hardware Specs & Labels', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 12)),
                 value: ui.showDroneLabels.value,
                 onChanged: (v) => ui.showDroneLabels.value = v ?? true,
-                activeColor: Colors.cyanAccent,
+                activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
               )),
 
           const SizedBox(height: 8),
@@ -590,6 +603,7 @@ class ControlPanel extends StatelessWidget {
     SimulationController sim,
     UIController ui,
     HardwareBridgeService hw,
+    bool isDark,
   ) {
     final state = hw.connectionState.value;
     final isConnected = state == HardwareConnectionState.connected;
@@ -943,43 +957,48 @@ class ControlPanel extends StatelessWidget {
         Obx(() => CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Tampilkan Home Base / Pad "H"', style: TextStyle(color: Colors.tealAccent, fontSize: 11)),
+              title: Text('Tampilkan Home Base / Pad "H"', style: TextStyle(color: isDark ? Colors.tealAccent : const Color(0xFF0D9488), fontSize: 11)),
               value: ui.showHomeBase.value,
               onChanged: (v) => ui.showHomeBase.value = v ?? true,
-              activeColor: Colors.tealAccent,
+              activeColor: isDark ? Colors.tealAccent : const Color(0xFF0D9488),
             )),
         Obx(() => CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Tampilkan Garis Grid Arena', style: TextStyle(color: Colors.white, fontSize: 11)),
+              title: Text('Tampilkan Garis Grid Arena', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 11)),
               value: ui.showArenaGrid.value,
               onChanged: (v) => ui.showArenaGrid.value = v ?? true,
-              activeColor: Colors.cyanAccent,
+              activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
             )),
         Obx(() => CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Tampilkan AI Minimap', style: TextStyle(color: Colors.white, fontSize: 11)),
+              title: Text('Tampilkan AI Minimap', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 11)),
               value: ui.showMinimaps.value,
               onChanged: (v) => ui.showMinimaps.value = v ?? true,
-              activeColor: Colors.cyanAccent,
+              activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
             )),
         Obx(() => CheckboxListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Tampilkan Jejak Drone', style: TextStyle(color: Colors.white, fontSize: 11)),
+              title: Text('Tampilkan Jejak Drone', style: TextStyle(color: AppColors.textPrimary(isDark), fontSize: 11)),
               value: ui.showMissionPath.value,
               onChanged: (v) => ui.showMissionPath.value = v ?? true,
-              activeColor: Colors.cyanAccent,
+              activeColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
             )),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
+
+        // Theme Mode Selector in Real Drone mode
+        const ThemeModeToggle(isCompact: false),
+        const SizedBox(height: 8),
+
         OutlinedButton.icon(
           onPressed: () => ui.resetCamera(),
           icon: const Icon(Icons.center_focus_strong, size: 14),
           label: const Text('Reset Camera View (Fit All)', style: TextStyle(fontSize: 11)),
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.white70,
-            side: const BorderSide(color: Colors.white24),
+            foregroundColor: isDark ? Colors.white70 : const Color(0xFF475569),
+            side: BorderSide(color: AppColors.border(isDark)),
             padding: const EdgeInsets.symmetric(vertical: 6),
           ),
         ),

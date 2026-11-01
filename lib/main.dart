@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'controllers/simulation_controller.dart';
 import 'controllers/ui_controller.dart';
+import 'utils/app_theme.dart';
 import 'views/main_screen.dart';
 
 void main() {
@@ -19,20 +20,15 @@ class SwarmDroneApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GetMaterialApp(
+    final ui = Get.find<UIController>();
+
+    return Obx(() => GetMaterialApp(
       title: 'Swarm Drone Simulation',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-        colorScheme: const ColorScheme.dark(
-          primary: Colors.cyanAccent,
-          secondary: Colors.tealAccent,
-          surface: Color(0xFF1E293B),
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ui.themeMode.value,
       home: const MainScreen(),
-    );
+    ));
   }
 }

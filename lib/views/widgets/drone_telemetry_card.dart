@@ -8,6 +8,7 @@ class DroneTelemetryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isLeader = drone.role == DroneRole.leader;
     final roleColor = drone.ledColor;
 
@@ -15,12 +16,21 @@ class DroneTelemetryCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: roleColor.withValues(alpha: 0.5),
+          color: roleColor.withValues(alpha: isDark ? 0.5 : 0.4),
           width: 1.5,
         ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,8 +62,8 @@ class DroneTelemetryCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     drone.name,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -68,13 +78,17 @@ class DroneTelemetryCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
-                      color: isLeader ? Colors.amber.shade900 : Colors.cyan.shade900,
+                      color: isLeader
+                          ? (isDark ? Colors.amber.shade900 : Colors.amber.shade100)
+                          : (isDark ? Colors.cyan.shade900 : Colors.cyan.shade100),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       isLeader ? 'LEADER' : 'MEMBER',
                       style: TextStyle(
-                        color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
+                        color: isLeader
+                            ? (isDark ? Colors.amberAccent : Colors.amber.shade900)
+                            : (isDark ? Colors.cyanAccent : const Color(0xFF0369A1)),
                         fontWeight: FontWeight.bold,
                         fontSize: 9,
                       ),
@@ -83,13 +97,13 @@ class DroneTelemetryCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
-                      color: _statusColor(drone.status).withValues(alpha: 0.2),
+                      color: _statusColor(drone.status, isDark).withValues(alpha: isDark ? 0.2 : 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       drone.status.name.toUpperCase(),
                       style: TextStyle(
-                        color: _statusColor(drone.status),
+                        color: _statusColor(drone.status, isDark),
                         fontWeight: FontWeight.bold,
                         fontSize: 9,
                       ),
@@ -104,11 +118,18 @@ class DroneTelemetryCard extends StatelessWidget {
           // Hardware Specs Summary
           Text(
             'Frame: ${drone.frameType.displayName} | RPi 4 + Pixhawk 6',
-            style: const TextStyle(color: Colors.cyanAccent, fontSize: 9.5, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           Text(
             'Sensors: 5x LiDAR, 1x OptFlow, 1x DW3000 UWB',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 9),
+            style: TextStyle(
+              color: isDark ? Colors.white.withValues(alpha: 0.7) : const Color(0xFF64748B),
+              fontSize: 9,
+            ),
           ),
           const SizedBox(height: 4),
 
@@ -120,11 +141,17 @@ class DroneTelemetryCard extends StatelessWidget {
             children: [
               Text(
                 'Pos: (${drone.position.x.toStringAsFixed(1)}, ${drone.position.y.toStringAsFixed(1)})',
-                style: const TextStyle(color: Colors.white70, fontSize: 10),
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  fontSize: 10,
+                ),
               ),
               Text(
                 'WP: ${drone.pathIndex}/${drone.pathCells.length}',
-                style: const TextStyle(color: Colors.white70, fontSize: 10),
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  fontSize: 10,
+                ),
               ),
             ],
           ),
@@ -138,11 +165,18 @@ class DroneTelemetryCard extends StatelessWidget {
             children: [
               Text(
                 'SLAM Mapped: ${drone.exploredPercentage.toStringAsFixed(1)}%',
-                style: const TextStyle(color: Colors.lightGreenAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: isDark ? Colors.lightGreenAccent : Colors.green.shade700,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 'Hits: W${drone.wallCollisionCount} D${drone.droneCollisionCount}',
-                style: const TextStyle(color: Colors.amberAccent, fontSize: 10),
+                style: TextStyle(
+                  color: isDark ? Colors.amberAccent : Colors.amber.shade900,
+                  fontSize: 10,
+                ),
               ),
             ],
           ),
@@ -151,18 +185,18 @@ class DroneTelemetryCard extends StatelessWidget {
     );
   }
 
-  Color _statusColor(DroneStatus s) {
+  Color _statusColor(DroneStatus s, bool isDark) {
     switch (s) {
       case DroneStatus.search:
-        return Colors.lightBlueAccent;
+        return isDark ? Colors.lightBlueAccent : const Color(0xFF0284C7);
       case DroneStatus.chase:
-        return Colors.amberAccent;
+        return isDark ? Colors.amberAccent : Colors.amber.shade800;
       case DroneStatus.found:
-        return Colors.greenAccent;
+        return isDark ? Colors.greenAccent : Colors.green.shade700;
       case DroneStatus.returnHome:
-        return Colors.purpleAccent;
+        return isDark ? Colors.purpleAccent : Colors.purple.shade700;
       case DroneStatus.arrived:
-        return Colors.grey;
+        return isDark ? Colors.grey : const Color(0xFF64748B);
     }
   }
 }

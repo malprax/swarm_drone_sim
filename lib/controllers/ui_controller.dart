@@ -40,6 +40,21 @@ class UIController extends GetxController {
   final wallLineThickness = 2.obs; // 0 = off, 1 = 1pt, 2 = 2pt, 3 = 3pt
   final wallLineStyle = WallLineStyle.solid.obs; // solid, dashed, zigzag, wavy
 
+  // Theme mode toggle: ThemeMode.dark, ThemeMode.light, ThemeMode.system
+  final themeMode = ThemeMode.system.obs;
+
+  void setThemeMode(ThemeMode mode) {
+    themeMode.value = mode;
+    Get.changeThemeMode(mode);
+  }
+
+  bool get isDarkMode {
+    if (themeMode.value == ThemeMode.system) {
+      return WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark;
+    }
+    return themeMode.value == ThemeMode.dark;
+  }
+
   // Multi-Mode Split Layout (Presets)
   final activeSplitLayout = ArenaSplitLayout.horizontal.obs;
 

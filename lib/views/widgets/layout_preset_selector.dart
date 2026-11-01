@@ -50,13 +50,15 @@ class LayoutPresetSelector extends StatelessWidget {
         ],
       );
 
+      final isDark = ui.isDarkMode;
+
       if (!showHeader) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A),
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF334155), width: 1.0),
+            border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1), width: 1.0),
           ),
           child: buttonsRow,
         );
@@ -65,21 +67,25 @@ class LayoutPresetSelector extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: const Color(0xEE0B1120),
+          color: isDark ? const Color(0xEE0B1120) : Colors.white,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF334155), width: 1.0),
-          boxShadow: const [
-            BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-          ],
+          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1), width: 1.0),
+          boxShadow: isDark
+              ? const [
+                  BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                ]
+              : const [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Layout:',
               style: TextStyle(
-                color: Colors.white60,
+                color: isDark ? Colors.white60 : const Color(0xFF64748B),
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -115,9 +121,10 @@ class _LayoutIconButtonState extends State<_LayoutIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = Colors.cyanAccent;
-    final hoverColor = Colors.white70;
-    final defaultColor = const Color(0xFF94A3B8);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = isDark ? Colors.cyanAccent : const Color(0xFF0284C7);
+    final hoverColor = isDark ? Colors.white70 : const Color(0xFF334155);
+    final defaultColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     final iconColor = widget.isActive
         ? activeColor
@@ -138,13 +145,13 @@ class _LayoutIconButtonState extends State<_LayoutIconButton> {
             height: 28,
             decoration: BoxDecoration(
               color: widget.isActive
-                  ? Colors.cyanAccent.withValues(alpha: 0.15)
-                  : (_isHovered ? const Color(0xFF1E293B) : Colors.transparent),
+                  ? activeColor.withValues(alpha: isDark ? 0.20 : 0.15)
+                  : (_isHovered ? (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)) : Colors.transparent),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: widget.isActive
-                    ? Colors.cyanAccent.withValues(alpha: 0.8)
-                    : (_isHovered ? const Color(0xFF475569) : Colors.transparent),
+                    ? activeColor.withValues(alpha: 0.8)
+                    : (_isHovered ? (isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1)) : Colors.transparent),
                 width: 1.0,
               ),
             ),

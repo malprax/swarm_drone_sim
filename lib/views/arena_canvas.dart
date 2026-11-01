@@ -377,6 +377,7 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                       activeGizmoDroneIndex: currentActiveDrone,
                       wallLineThickness: ui.wallLineThickness.value,
                       wallLineStyle: ui.wallLineStyle.value,
+                      isDarkMode: ui.isDarkMode,
                     ),
                   );
                 }),
@@ -458,17 +459,25 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                 // Default info pill when gizmo is idle
                 final curZoom = (ui.zoom.value * 100).toInt();
                 final isReal = sim.isRealDroneMode;
+                final isDark = ui.isDarkMode;
                 return Align(
                   alignment: Alignment.bottomLeft,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: const Color(0xCC0F172A),
+                      color: isDark ? const Color(0xCC0F172A) : Colors.white.withValues(alpha: 0.92),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isReal ? const Color(0xFF06B6D4) : Colors.white24,
+                        color: isReal
+                            ? (isDark ? const Color(0xFF06B6D4) : const Color(0xFF0284C7))
+                            : (isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
                         width: 1,
                       ),
+                      boxShadow: isDark
+                          ? null
+                          : const [
+                              BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+                            ],
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -476,7 +485,7 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                         Icon(
                           isReal ? Icons.radar : Icons.mouse_outlined,
                           size: 13,
-                          color: Colors.cyanAccent,
+                          color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
                         ),
                         const SizedBox(width: 5),
                         Flexible(
@@ -484,7 +493,10 @@ class _ArenaCanvasState extends State<ArenaCanvas> {
                             isReal
                                 ? '🛸 Real Drone Mode • Memetakan ruangan fisik dengan 5 LiDAR • Zoom: $curZoom%'
                                 : 'Zoom: $curZoom% • Scroll Wheel / Klik-Kanan Geser Mouse / Shift+Geser = Zoom • Klik-Kiri = Pan',
-                            style: const TextStyle(color: Colors.white70, fontSize: 10),
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : const Color(0xFF475569),
+                              fontSize: 10,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -534,158 +546,168 @@ class _FloatingZoomHUD extends StatelessWidget {
     final sim = Get.find<SimulationController>();
     final ui = Get.find<UIController>();
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: const Color(0xEE0B1120),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF334155), width: 1.0),
-        boxShadow: const [
-          BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Row 1: Zoom In, Zoom Out, Reset, and Zoom Badge
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Zoom Out Button
-              IconButton(
-                onPressed: () => ui.zoomOut(viewportSize: viewportSize),
-                icon: const Icon(Icons.remove, size: 16, color: Colors.white),
-                tooltip: 'Zoom Out (Scroll Down / Klik-Kanan Geser Bawah)',
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.all(6),
-                  visualDensity: VisualDensity.compact,
+    return Obx(() {
+      final isDark = ui.isDarkMode;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xEE0B1120) : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1), width: 1.0),
+          boxShadow: isDark
+              ? const [
+                  BoxShadow(color: Colors.black45, blurRadius: 6, offset: Offset(0, 2)),
+                ]
+              : const [
+                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+                ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            // Row 1: Zoom In, Zoom Out, Reset, and Zoom Badge
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Zoom Out Button
+                IconButton(
+                  onPressed: () => ui.zoomOut(viewportSize: viewportSize),
+                  icon: Icon(Icons.remove, size: 16, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  tooltip: 'Zoom Out (Scroll Down / Klik-Kanan Geser Bawah)',
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    padding: const EdgeInsets.all(6),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
+                const SizedBox(width: 4),
 
-              // Interactive Quick Zoom Slider for direct mouse dragging
-              SizedBox(
-                width: 75,
-                child: Obx(() => SliderTheme(
-                  data: const SliderThemeData(
-                    trackHeight: 3,
-                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 5),
-                    overlayShape: RoundSliderOverlayShape(overlayRadius: 8),
-                    activeTrackColor: Colors.cyanAccent,
-                    inactiveTrackColor: Colors.white24,
-                    thumbColor: Colors.cyanAccent,
-                  ),
-                  child: Slider(
-                    value: ui.zoom.value.clamp(UIController.minZoom, UIController.maxZoom),
-                    min: UIController.minZoom,
-                    max: UIController.maxZoom,
-                    onChanged: (val) {
-                      ui.zoom.value = val;
-                      ui.followingDroneIndex.value = -1;
-                    },
-                  ),
-                )),
-              ),
-              const SizedBox(width: 4),
-
-              // Zoom Percent Pill (Click to Reset)
-              Obx(() {
-                final percent = (ui.zoom.value * 100).toInt();
-                return InkWell(
-                  onTap: () => ui.resetCamera(),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.5)),
+                // Interactive Quick Zoom Slider for direct mouse dragging
+                SizedBox(
+                  width: 75,
+                  child: Obx(() => SliderTheme(
+                    data: SliderThemeData(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 8),
+                      activeTrackColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
+                      inactiveTrackColor: isDark ? Colors.white24 : const Color(0xFFCBD5E1),
+                      thumbColor: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
                     ),
-                    child: Text(
-                      '$percent%',
-                      style: const TextStyle(
-                        color: Colors.cyanAccent,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                    child: Slider(
+                      value: ui.zoom.value.clamp(UIController.minZoom, UIController.maxZoom),
+                      min: UIController.minZoom,
+                      max: UIController.maxZoom,
+                      onChanged: (val) {
+                        ui.zoom.value = val;
+                        ui.followingDroneIndex.value = -1;
+                      },
+                    ),
+                  )),
+                ),
+                const SizedBox(width: 4),
+
+                // Zoom Percent Pill (Click to Reset)
+                Obx(() {
+                  final percent = (ui.zoom.value * 100).toInt();
+                  return InkWell(
+                    onTap: () => ui.resetCamera(),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isDark ? Colors.cyanAccent.withValues(alpha: 0.5) : const Color(0xFF0284C7).withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Text(
+                        '$percent%',
+                        style: TextStyle(
+                          color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
+                  );
+                }),
+                const SizedBox(width: 4),
+
+                // Zoom In Button
+                IconButton(
+                  onPressed: () => ui.zoomIn(viewportSize: viewportSize),
+                  icon: Icon(Icons.add, size: 16, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+                  tooltip: 'Zoom In (Scroll Up / Klik-Kanan Geser Atas)',
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    padding: const EdgeInsets.all(6),
+                    visualDensity: VisualDensity.compact,
                   ),
-                );
-              }),
-              const SizedBox(width: 4),
-
-              // Zoom In Button
-              IconButton(
-                onPressed: () => ui.zoomIn(viewportSize: viewportSize),
-                icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                tooltip: 'Zoom In (Scroll Up / Klik-Kanan Geser Atas)',
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.all(6),
-                  visualDensity: VisualDensity.compact,
                 ),
-              ),
-              const SizedBox(width: 4),
+                const SizedBox(width: 4),
 
-              // 1:1 Desk View Focus Button
-              IconButton(
-                onPressed: () {
-                  final dronePos = sim.activeDrones.isNotEmpty ? sim.activeDrones[0].position : Vector2.zero;
-                  ui.centerOnWorld(dronePos, viewportSize, targetZoom: 6.0);
-                  ui.followingDroneIndex.value = 0;
-                },
-                icon: const Icon(Icons.zoom_in_map, size: 16, color: Colors.cyanAccent),
-                tooltip: '1:1 Desk View (Zoom Dekat 600% & Ikuti Drone)',
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.all(6),
-                  visualDensity: VisualDensity.compact,
+                // 1:1 Desk View Focus Button
+                IconButton(
+                  onPressed: () {
+                    final dronePos = sim.activeDrones.isNotEmpty ? sim.activeDrones[0].position : Vector2.zero;
+                    ui.centerOnWorld(dronePos, viewportSize, targetZoom: 6.0);
+                    ui.followingDroneIndex.value = 0;
+                  },
+                  icon: Icon(Icons.zoom_in_map, size: 16, color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7)),
+                  tooltip: '1:1 Desk View (Zoom Dekat 600% & Ikuti Drone)',
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    padding: const EdgeInsets.all(6),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
+                const SizedBox(width: 4),
 
-              // Reset Camera View Button
-              IconButton(
-                onPressed: () => ui.resetCamera(),
-                icon: const Icon(Icons.center_focus_strong, size: 16, color: Colors.amberAccent),
-                tooltip: 'Fit All / Reset Camera',
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  padding: const EdgeInsets.all(6),
-                  visualDensity: VisualDensity.compact,
+                // Reset Camera View Button
+                IconButton(
+                  onPressed: () => ui.resetCamera(),
+                  icon: Icon(Icons.center_focus_strong, size: 16, color: isDark ? Colors.amberAccent : Colors.amber.shade800),
+                  tooltip: 'Fit All / Reset Camera',
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                    padding: const EdgeInsets.all(6),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
+              ],
+            ),
+            const SizedBox(height: 6),
 
-          // Row 2: Camera Focus on Drone Buttons
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Focus: ', style: TextStyle(color: Colors.white54, fontSize: 10)),
-              _buildFollowButton(ui, -1, 'All', null),
-              const SizedBox(width: 3),
-              ...sim.activeDrones.asMap().entries.map((entry) {
-                final idx = entry.key;
-                final drone = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(left: 3),
-                  child: _buildFollowButton(ui, idx, 'D${idx + 1}', drone),
-                );
-              }),
-            ],
-          ),
-        ],
-      ),
-    );
+            // Row 2: Camera Focus on Drone Buttons
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Focus: ', style: TextStyle(color: isDark ? Colors.white54 : const Color(0xFF64748B), fontSize: 10)),
+                _buildFollowButton(ui, -1, 'All', null, isDark),
+                const SizedBox(width: 3),
+                ...sim.activeDrones.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final drone = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 3),
+                    child: _buildFollowButton(ui, idx, 'D${idx + 1}', drone, isDark),
+                  );
+                }),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 
-  Widget _buildFollowButton(UIController ui, int index, String label, DroneModel? drone) {
+  Widget _buildFollowButton(UIController ui, int index, String label, DroneModel? drone, bool isDark) {
     return Obx(() {
       final isSelected = ui.followingDroneIndex.value == index;
-      final Color activeColor = drone != null ? drone.ledColor : Colors.cyanAccent;
+      final Color activeColor = drone != null ? drone.ledColor : (isDark ? Colors.cyanAccent : const Color(0xFF0284C7));
 
       return InkWell(
         onTap: () {
@@ -699,17 +721,19 @@ class _FloatingZoomHUD extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
-            color: isSelected ? activeColor.withValues(alpha: 0.3) : const Color(0xFF0F172A),
+            color: isSelected
+                ? activeColor.withValues(alpha: isDark ? 0.3 : 0.15)
+                : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9)),
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
-              color: isSelected ? activeColor : Colors.white24,
+              color: isSelected ? activeColor : (isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
               width: 1,
             ),
           ),
           child: Text(
             label,
             style: TextStyle(
-              color: isSelected ? activeColor : Colors.white70,
+              color: isSelected ? activeColor : (isDark ? Colors.white70 : const Color(0xFF475569)),
               fontSize: 9.5,
               fontWeight: FontWeight.bold,
             ),
@@ -740,6 +764,7 @@ class ArenaPainter extends CustomPainter {
   final int activeGizmoDroneIndex;
   final int wallLineThickness;
   final WallLineStyle wallLineStyle;
+  final bool isDarkMode;
 
   ArenaPainter({
     required this.sim,
@@ -761,6 +786,7 @@ class ArenaPainter extends CustomPainter {
     required this.activeGizmoDroneIndex,
     required this.wallLineThickness,
     required this.wallLineStyle,
+    this.isDarkMode = true,
   });
 
   static const double worldCenterX = 0.0;
@@ -1009,13 +1035,15 @@ class ArenaPainter extends CustomPainter {
   void _drawFloor(Canvas canvas, Size size, Offset Function(Vector2) w2s, double scale) {
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0xFF0F172A),
+      Paint()..color = isDarkMode ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
     );
 
     if (!arenaGridVisible) return;
 
     final fineGridPaint = Paint()
-      ..color = const Color(0xFF1E293B).withValues(alpha: 0.6)
+      ..color = isDarkMode
+          ? const Color(0xFF1E293B).withValues(alpha: 0.6)
+          : const Color(0xFFE2E8F0).withValues(alpha: 0.95)
       ..strokeWidth = 0.8;
 
     for (double x = -18.0; x <= 18.0; x += 0.5) {
@@ -1031,7 +1059,9 @@ class ArenaPainter extends CustomPainter {
     }
 
     final majorGridPaint = Paint()
-      ..color = const Color(0xFF334155).withValues(alpha: 0.8)
+      ..color = isDarkMode
+          ? const Color(0xFF334155).withValues(alpha: 0.8)
+          : const Color(0xFFCBD5E1)
       ..strokeWidth = 1.2;
 
     for (double x = -18.0; x <= 18.0; x += 2.0) {
@@ -1308,11 +1338,11 @@ class ArenaPainter extends CustomPainter {
     double Function(double) toSDist,
   ) {
     final wallFill = Paint()
-      ..color = const Color(0xFF1E293B)
+      ..color = isDarkMode ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1)
       ..style = PaintingStyle.fill;
 
     final wallBorder = Paint()
-      ..color = const Color(0xFF64748B)
+      ..color = isDarkMode ? const Color(0xFF64748B) : const Color(0xFF64748B)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(1.0, toSDist(0.04));
 

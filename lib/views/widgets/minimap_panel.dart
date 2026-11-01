@@ -6,6 +6,7 @@ import '../../controllers/ui_controller.dart';
 import '../../models/drone_model.dart';
 import '../../models/grid_map_2d.dart';
 import '../../models/vector2.dart';
+import '../../utils/app_theme.dart';
 
 class MinimapPanel extends StatelessWidget {
   final bool? isVertical;
@@ -20,14 +21,15 @@ class MinimapPanel extends StatelessWidget {
     return Obx(() {
       if (!ui.showMinimaps.value) return const SizedBox.shrink();
 
+      final isDark = ui.isDarkMode;
       final effectiveVertical = isVertical ?? (ui.activeSplitLayout.value != ArenaSplitLayout.horizontal);
 
       return Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF111827),
+          color: AppColors.minimapPanel(isDark),
           border: Border(
-            top: effectiveVertical ? BorderSide.none : const BorderSide(color: Color(0xFF374151), width: 1.0),
-            left: effectiveVertical ? const BorderSide(color: Color(0xFF374151), width: 1.0) : BorderSide.none,
+            top: effectiveVertical ? BorderSide.none : BorderSide(color: AppColors.border(isDark), width: 1.0),
+            left: effectiveVertical ? BorderSide(color: AppColors.border(isDark), width: 1.0) : BorderSide.none,
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -38,15 +40,19 @@ class MinimapPanel extends StatelessWidget {
             if (effectiveVertical)
               Row(
                 children: [
-                  const Icon(Icons.map_outlined, color: Colors.cyanAccent, size: 15),
+                  Icon(
+                    Icons.map_outlined,
+                    color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
+                    size: 15,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Obx(() => Text(
                           sim.activeDroneCount.value == 1
                               ? 'AI SLAM MAPPING (1 DRONE)'
                               : '${sim.activeDroneCount.value}x AI SLAM MAPPING',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppColors.textPrimary(isDark),
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
                             letterSpacing: 0.6,
@@ -56,7 +62,7 @@ class MinimapPanel extends StatelessWidget {
                   ),
                   IconButton(
                     onPressed: () => ui.showMinimaps.value = false,
-                    icon: const Icon(Icons.close, size: 15, color: Colors.white60),
+                    icon: Icon(Icons.close, size: 15, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
                     tooltip: 'Hide Minimap Panel',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -66,15 +72,19 @@ class MinimapPanel extends StatelessWidget {
             else
               Row(
                 children: [
-                  const Icon(Icons.map_outlined, color: Colors.cyanAccent, size: 16),
+                  Icon(
+                    Icons.map_outlined,
+                    color: isDark ? Colors.cyanAccent : const Color(0xFF0284C7),
+                    size: 16,
+                  ),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Obx(() => Text(
                           sim.activeDroneCount.value == 1
                               ? 'AI LOCAL ROOM MAPPING (1 DRONE - WIDE SCAN)'
                               : '${sim.activeDroneCount.value}-DRONE AI LOCAL ROOM MAPPING',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppColors.textPrimary(isDark),
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
                             letterSpacing: 0.8,
@@ -83,16 +93,19 @@ class MinimapPanel extends StatelessWidget {
                         )),
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'RPi 4 • Pixhawk 6 • 5x LiDAR • OF • UWB DW3000',
-                      style: TextStyle(color: Colors.white54, fontSize: 10),
+                      style: TextStyle(
+                        color: AppColors.textMuted(isDark),
+                        fontSize: 10,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   IconButton(
                     onPressed: () => ui.showMinimaps.value = false,
-                    icon: const Icon(Icons.close, size: 16, color: Colors.white60),
+                    icon: Icon(Icons.close, size: 16, color: isDark ? Colors.white60 : const Color(0xFF64748B)),
                     tooltip: 'Hide Minimaps',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -140,17 +153,27 @@ class _SingleDroneMinimap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ui = Get.find<UIController>();
+    final isDark = ui.isDarkMode;
     final isLeader = drone.role == DroneRole.leader;
     final roleColor = drone.ledColor;
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: roleColor.withValues(alpha: 0.6),
+          color: roleColor.withValues(alpha: isDark ? 0.6 : 0.4),
           width: 1.5,
         ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
       ),
       child: Column(
         children: [
@@ -158,7 +181,7 @@ class _SingleDroneMinimap extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
             decoration: BoxDecoration(
-              color: roleColor.withValues(alpha: 0.12),
+              color: roleColor.withValues(alpha: isDark ? 0.12 : 0.08),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
             ),
             child: LayoutBuilder(
@@ -183,8 +206,8 @@ class _SingleDroneMinimap extends StatelessWidget {
                     Flexible(
                       child: Text(
                         drone.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
                         ),
@@ -196,13 +219,17 @@ class _SingleDroneMinimap extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: isLeader ? Colors.amber.shade900 : Colors.cyan.shade900,
+                          color: isLeader
+                              ? (isDark ? Colors.amber.shade900 : Colors.amber.shade100)
+                              : (isDark ? Colors.cyan.shade900 : Colors.cyan.shade100),
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: Text(
                           isLeader ? 'LEADER' : 'MEMBER',
                           style: TextStyle(
-                            color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
+                            color: isLeader
+                                ? (isDark ? Colors.amberAccent : Colors.amber.shade900)
+                                : (isDark ? Colors.cyanAccent : const Color(0xFF0369A1)),
                             fontSize: 8,
                             fontWeight: FontWeight.bold,
                           ),
@@ -213,13 +240,17 @@ class _SingleDroneMinimap extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                         decoration: BoxDecoration(
-                          color: isLeader ? Colors.amber.shade900 : Colors.cyan.shade900,
+                          color: isLeader
+                              ? (isDark ? Colors.amber.shade900 : Colors.amber.shade100)
+                              : (isDark ? Colors.cyan.shade900 : Colors.cyan.shade100),
                           borderRadius: BorderRadius.circular(2),
                         ),
                         child: Text(
                           isLeader ? 'L' : 'M',
                           style: TextStyle(
-                            color: isLeader ? Colors.amberAccent : Colors.cyanAccent,
+                            color: isLeader
+                                ? (isDark ? Colors.amberAccent : Colors.amber.shade900)
+                                : (isDark ? Colors.cyanAccent : const Color(0xFF0369A1)),
                             fontSize: 7.5,
                             fontWeight: FontWeight.bold,
                           ),
@@ -231,8 +262,8 @@ class _SingleDroneMinimap extends StatelessWidget {
                       isCompact
                           ? '${drone.exploredPercentage.toStringAsFixed(0)}%'
                           : '${drone.exploredPercentage.toStringAsFixed(0)}% Map',
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style: TextStyle(
+                        color: isDark ? Colors.white70 : const Color(0xFF475569),
                         fontSize: 9,
                         fontWeight: FontWeight.w600,
                       ),
@@ -252,6 +283,7 @@ class _SingleDroneMinimap extends StatelessWidget {
                 painter: _DroneLocalMapPainter(
                   drone: drone,
                   wallLineThickness: ui.wallLineThickness.value,
+                  isDark: isDark,
                 ),
               ),
             ),
@@ -265,10 +297,12 @@ class _SingleDroneMinimap extends StatelessWidget {
 class _DroneLocalMapPainter extends CustomPainter {
   final DroneModel drone;
   final int wallLineThickness;
+  final bool isDark;
 
   _DroneLocalMapPainter({
     required this.drone,
     required this.wallLineThickness,
+    required this.isDark,
   });
 
   static const double worldCenterX = 0.0;
@@ -290,7 +324,7 @@ class _DroneLocalMapPainter extends CustomPainter {
     // Background
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0xFF0B1017),
+      Paint()..color = isDark ? const Color(0xFF0B1017) : const Color(0xFFF1F5F9),
     );
 
     final map = drone.localMap;
