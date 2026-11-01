@@ -8,7 +8,9 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg)]()
 [![Simulation Status](https://img.shields.io/badge/Monte%20Carlo-1%2C000%20Runs%20Verified-success.svg)]()
-[![Paper Status](https://img.shields.io/badge/JTIIK-Sinta%202%20Reviewed-blue.svg)](http://jtiik.ub.ac.id)
+[![DOI](https://img.shields.io/badge/DOI-10.25126%2Fjtiik.2026.13.1.9821-107C41.svg)](https://doi.org/10.25126/jtiik.2026.13.1.9821)
+[![Paper Status](https://img.shields.io/badge/JTIIK-Vol.%2013(1)%20April%202026-blue.svg)](http://jtiik.ub.ac.id)
+[![SINTA 2](https://img.shields.io/badge/SINTA-S2%20Akreditasi-green.svg)](http://jtiik.ub.ac.id)
 
 ---
 
@@ -16,10 +18,26 @@
 
 Autonomous multi-UAV (Unmanned Aerial Vehicle) operations in GPS-denied, architecturally segmented indoor environments present critical challenges in decentralized state estimation, cooperative frontier exploration, and aerodynamic stabilization under severe spatial confinement.
 
-**`swarm_drone_sim`** is an open-source, high-fidelity robotic simulation and experimental Ground Control Station (GCS) framework designed to model, analyze, and validate autonomous quadrotor swarm coordination under perceptual uncertainty. Developed to accompany our revised manuscript in the **Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK - Sinta 2)** entitled:
+**`swarm_drone_sim`** is an open-source, high-fidelity robotic simulation and experimental Ground Control Station (GCS) framework designed to model, analyze, and validate autonomous quadrotor swarm coordination under perceptual uncertainty. Developed to accompany our revised publication in the **Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK - Sinta 2)**:
 
-> **"Probabilistic Modeling and Stability Analysis of Autonomous Swarm Drone Coordination in Segmented Indoor Environments"**  
-> *Aulia Sabril, Jalaluddin, and A. A. Mochtar (2026)*
+> ### **PEMODELAN PROBABILISTIK DAN ANALISIS STABILITAS KOORDINASI SWARM DRONE OTONOM PADA LINGKUNGAN INDOOR TERSEGMENTASI**  
+> *(Probabilistic Modeling and Stability Analysis of Autonomous Swarm Drone Coordination in Segmented Indoor Environments)*  
+>  
+> **Authors:**  
+> - **Aulia Sabril**<sup>1,*</sup> (`aulia.sabril@unm.ac.id`) — *Penulis Korespondensi*  
+> - **Akhyar Muchtar**<sup>2</sup> (`akhyar.muchtar@unm.ac.id`)  
+> - **Putri Ayu Tono**<sup>1</sup> (`putriayutono19@gmail.com`)  
+>  
+> <sup>1</sup> *Jurusan Teknik Elektronika, Fakultas Teknik, Universitas Negeri Makassar*  
+> <sup>2</sup> *Jurusan Teknik Elektro, Fakultas Teknik, Universitas Negeri Makassar*  
+>  
+> **Publication Record:**  
+> - **Journal:** Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK)  
+> - **Accreditation:** Sinta 2 (KEMENRISTEKDIKTI No. 36/E/KPT/2019)  
+> - **Citation Info:** Vol. 13, No. 1, April 2026, hlm. 1-12  
+> - **ISSN:** p-ISSN: 2355-7699 \| e-ISSN: 2528-6579  
+> - **DOI:** [10.25126/jtiik.2026.13.1.9821](https://doi.org/10.25126/jtiik.2026.13.1.9821)  
+> - **Timeline:** *Naskah masuk: 14 Oktober 2026, direvisi: 28 Oktober 2026*
 
 The framework couples a **Belief-Space Partially Observable Markov Decision Process (POMDP)** coordination cycle with an explicit **Actuator Feasibility Filter**. Unlike idealized point-mass kinematics, every agent in this framework strictly adheres to physical multirotor constraints:
 - **Rotor Operational Envelope:** $5,000 \le \omega_i \le 8,000 \text{ RPM}$ per brushless DC motor.
@@ -342,35 +360,41 @@ If you find this software, simulation framework, or experimental methodology use
 
 ### BibTeX
 ```bibtex
-@article{sabril2026probabilistic,
-  author    = {Sabril, Aulia and Jalaluddin and Mochtar, A. A.},
-  title     = {Probabilistic Modeling and Stability Analysis of Autonomous Swarm Drone Coordination in Segmented Indoor Environments},
+@article{sabril2026pemodelan,
+  author    = {Sabril, Aulia and Muchtar, Akhyar and Tono, Putri Ayu},
+  title     = {Pemodelan Probabilistik dan Analisis Stabilitas Koordinasi Swarm Drone Otonom pada Lingkungan Indoor Tersegmentasi},
   journal   = {Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK)},
   volume    = {13},
   number    = {1},
   pages     = {1--12},
   year      = {2026},
+  month     = {April},
   issn      = {2355-7699},
   eissn     = {2528-6579},
   publisher = {Fakultas Ilmu Komputer, Universitas Brawijaya},
-  doi       = {10.25126/jtiik.2026.XXXXX}
+  doi       = {10.25126/jtiik.2026.13.1.9821}
 }
 ```
 
 ### Harvard-Anglia Format
 ```
-Sabril, A., Jalaluddin dan Mochtar, A.A., 2026. Probabilistic Modeling and Stability Analysis of Autonomous Swarm Drone Coordination in Segmented Indoor Environments. Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK), 13(1), pp. 1-12. doi: 10.25126/jtiik.2026.XXXXX.
+Sabril, A., Muchtar, A. dan Tono, P.A., 2026. Pemodelan Probabilistik dan Analisis Stabilitas Koordinasi Swarm Drone Otonom pada Lingkungan Indoor Tersegmentasi. Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK), 13(1), hlm. 1-12. doi: 10.25126/jtiik.2026.13.1.9821.
+```
+
+### English Citation Format
+```
+Sabril, A., Muchtar, A. and Tono, P.A., 2026. Probabilistic Modeling and Stability Analysis of Autonomous Swarm Drone Coordination in Segmented Indoor Environments. Journal of Information Technology and Computer Science (JTIIK), 13(1), pp. 1-12. doi: 10.25126/jtiik.2026.13.1.9821.
 ```
 
 ---
 
 ## 🤝 Acknowledgments
 
-This research and simulation framework were developed with the support of:
-- **Departemen Teknik Mesin, Fakultas Teknik, Universitas Hasanuddin (UNHAS)**
-- **Jurusan Teknik Mesin, Fakultas Teknik, Universitas Negeri Makassar (UNM)**
+This research, mathematical modeling, and experimental simulation framework were developed within:
+- **Jurusan Teknik Elektronika, Fakultas Teknik, Universitas Negeri Makassar (UNM)**
+- **Jurusan Teknik Elektro, Fakultas Teknik, Universitas Negeri Makassar (UNM)**
 
-Special gratitude is extended to the laboratory technicians, research advisors, and peer reviewers whose constructive feedback during the **JTIIK (Sinta 2)** review process significantly improved the mathematical rigor, stability analysis, and reproducibility standard of this codebase.
+Special gratitude is extended to the academic staff, laboratory technicians, research colleagues at Universitas Negeri Makassar, and the peer reviewers and editorial board of **Jurnal Teknologi Informasi dan Ilmu Komputer (JTIIK - Sinta 2)** for their constructive evaluations and recommendations that significantly improved the mathematical formulation, stability proofs, and empirical reproducibility of this publication.
 
 ---
 
